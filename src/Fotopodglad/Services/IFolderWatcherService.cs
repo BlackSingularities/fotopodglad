@@ -12,6 +12,10 @@ public interface IFolderWatcherService : IDisposable
     /// <summary>Wywoływane raz, po zakończeniu stabilizacji i zgłoszeniu wszystkich zaległych plików z folderu.</summary>
     event Action? InitialScanCompleted;
 
+    event Action<bool, string?>? AvailabilityChanged;
+    bool IsAvailable { get; }
+    string? AvailabilityMessage { get; }
+
     void Start(string folderPath);
     void Stop();
 }

@@ -25,10 +25,20 @@ public partial class ZoomableImage : UserControl
         nameof(Source), typeof(ImageSource), typeof(ZoomableImage),
         new PropertyMetadata(null, OnSourceChanged));
 
+    public static readonly DependencyProperty OverlaySourceProperty = DependencyProperty.Register(
+        nameof(OverlaySource), typeof(ImageSource), typeof(ZoomableImage),
+        new PropertyMetadata(null, OnOverlaySourceChanged));
+
     public ImageSource? Source
     {
         get => (ImageSource?)GetValue(SourceProperty);
         set => SetValue(SourceProperty, value);
+    }
+
+    public ImageSource? OverlaySource
+    {
+        get => (ImageSource?)GetValue(OverlaySourceProperty);
+        set => SetValue(OverlaySourceProperty, value);
     }
 
     public ZoomableImage()
@@ -36,9 +46,34 @@ public partial class ZoomableImage : UserControl
         InitializeComponent();
         PreviewMouseWheel += OnPreviewMouseWheel;
         MouseLeftButtonDown += OnMouseLeftButtonDown;
+        MouseDoubleClick += OnMouseDoubleClick;
         MouseMove += OnMouseMove;
         MouseLeftButtonUp += OnMouseLeftButtonUp;
         LostMouseCapture += (_, _) => _isDragging = false;
+    }
+
+    private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ScaleTransform.ScaleX > MinZoom + 0.01)
+        {
+            ResetZoom();
+            e.Handled = true;
+            return;
+        }
+
+        var fitted = GetFittedImageSize();
+        if (PhotoImage.Source is not BitmapSource source || fitted.Width <= 0)
+        {
+            return;
+        }
+
+        var zoom100 = Math.Clamp(source.PixelWidth / fitted.Width, MinZoom, MaxZoom);
+        ScaleTransform.ScaleX = zoom100;
+        ScaleTransform.ScaleY = zoom100;
+        TranslateTransform.X = 0;
+        TranslateTransform.Y = 0;
+        ClampTranslation();
+        e.Handled = true;
     }
 
     public void ResetZoom()
@@ -55,6 +90,9 @@ public partial class ZoomableImage : UserControl
         control.PhotoImage.Source = e.NewValue as ImageSource;
         control.ResetZoom();
     }
+
+    private static void OnOverlaySourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((ZoomableImage)d).OverlayImage.Source = e.NewValue as ImageSource;
 
     private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
@@ -132,10 +170,25 @@ public partial class ZoomableImage : UserControl
             return;
         }
 
-        var maxOffsetX = RootGrid.ActualWidth * (zoom - 1) / 2;
-        var maxOffsetY = RootGrid.ActualHeight * (zoom - 1) / 2;
+        var fitted = GetFittedImageSize();
+        var maxOffsetX = Math.Max(0, (fitted.Width * zoom - RootGrid.ActualWidth) / 2);
+        var maxOffsetY = Math.Max(0, (fitted.Height * zoom - RootGrid.ActualHeight) / 2);
 
         TranslateTransform.X = Math.Clamp(TranslateTransform.X, -maxOffsetX, maxOffsetX);
         TranslateTransform.Y = Math.Clamp(TranslateTransform.Y, -maxOffsetY, maxOffsetY);
+    }
+
+    private Size GetFittedImageSize()
+    {
+        if (PhotoImage.Source is not BitmapSource source || source.PixelWidth <= 0 || source.PixelHeight <= 0 ||
+            RootGrid.ActualWidth <= 0 || RootGrid.ActualHeight <= 0)
+        {
+            return new Size(0, 0);
+        }
+
+        var scale = Math.Min(
+            RootGrid.ActualWidth / source.PixelWidth,
+            RootGrid.ActualHeight / source.PixelHeight);
+        return new Size(source.PixelWidth * scale, source.PixelHeight * scale);
     }
 }

@@ -18,8 +18,13 @@ namespace Fotopodglad.ViewModels;
 public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 {
     private readonly IPhotoLibraryService _library;
+    private readonly AppSettings _settings;
     private readonly DispatcherTimer _manualHoldTimer;
     private int _loadToken;
+    private CancellationTokenSource? _imageLoadCts;
+    private CancellationTokenSource? _analysisCts;
+
+    public event Action? ZoomResetRequested;
 
     [ObservableProperty]
     private PhotoItem? currentPhoto;
@@ -33,12 +38,23 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     [ObservableProperty]
     private bool showPhotoParameters;
 
+    [ObservableProperty]
+    private double exifTextSize = 15;
+
+    [ObservableProperty]
+    private BitmapSource? histogramImage;
+
+    [ObservableProperty]
+    private BitmapSource? clippingOverlaySource;
+
     public ObservableCollection<ExifFieldViewModel> ExifFields { get; } = new();
 
     public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings)
     {
         _library = library;
+        _settings = settings;
         showPhotoParameters = settings.ShowPhotoParameters;
+        exifTextSize = settings.ExifTextSize * AppearanceService.ScaleFactor(settings);
         var manualHoldDuration = TimeSpan.FromSeconds(Math.Clamp(
             settings.ManualHoldSeconds,
             AppSettings.MinManualHoldSeconds,
@@ -51,6 +67,7 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         };
 
         _library.NewestChanged += OnNewestChanged;
+        _settings.Changed += OnSettingsChanged;
 
         if (_library.Latest is { } latest)
         {
@@ -76,6 +93,41 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         _manualHoldTimer.Start();
     }
 
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        ShowPhotoParameters = _settings.ShowPhotoParameters;
+        ExifTextSize = Math.Clamp(_settings.ExifTextSize, 10, 32) * AppearanceService.ScaleFactor(_settings);
+        _manualHoldTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(
+            _settings.ManualHoldSeconds,
+            AppSettings.MinManualHoldSeconds,
+            AppSettings.MaxManualHoldSeconds));
+
+        if (CurrentImageSource is { } source)
+        {
+            _ = AnalyzeImageAsync(source);
+        }
+    }
+
+    public void ShowPrevious()
+    {
+        var index = CurrentPhoto is null ? -1 : _library.Photos.IndexOf(CurrentPhoto);
+        if (index >= 0 && index + 1 < _library.Photos.Count)
+        {
+            ShowManually(_library.Photos[index + 1]);
+        }
+    }
+
+    public void ShowNext()
+    {
+        var index = CurrentPhoto is null ? -1 : _library.Photos.IndexOf(CurrentPhoto);
+        if (index > 0)
+        {
+            ShowManually(_library.Photos[index - 1]);
+        }
+    }
+
+    public void ResetZoom() => ZoomResetRequested?.Invoke();
+
     private void OnNewestChanged(PhotoItem newest)
     {
         if (Mode == PreviewMode.Auto)
@@ -100,15 +152,62 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 
     private async Task LoadImageAsync(PhotoItem photo)
     {
+        _imageLoadCts?.Cancel();
+        _imageLoadCts?.Dispose();
+        _imageLoadCts = new CancellationTokenSource();
+        var cancellationToken = _imageLoadCts.Token;
         var token = ++_loadToken;
-        var bitmap = await Task.Run(() => BitmapHelper.LoadFrozen(photo.FilePath, decodePixelWidth: 3840));
+        BitmapImage? bitmap;
+        try
+        {
+            bitmap = await Task.Run(
+                () => BitmapHelper.LoadFrozen(photo.FilePath, decodePixelWidth: 3840, cancellationToken),
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
-        if (token != _loadToken)
+        if (token != _loadToken || cancellationToken.IsCancellationRequested)
         {
             return; // W międzyczasie zażądano innego zdjęcia — porzucamy przestarzały wynik.
         }
 
         CurrentImageSource = bitmap;
+        if (bitmap is not null)
+        {
+            _ = AnalyzeImageAsync(bitmap);
+        }
+    }
+
+    private async Task AnalyzeImageAsync(BitmapSource source)
+    {
+        _analysisCts?.Cancel();
+        _analysisCts?.Dispose();
+        _analysisCts = new CancellationTokenSource();
+        var cancellationToken = _analysisCts.Token;
+
+        try
+        {
+            var result = await Task.Run(() =>
+            {
+                var histogram = ImageAnalysisService.CreateHistogram(source, _settings.Histogram, cancellationToken);
+                var clipping = _settings.ShowClippingWarnings
+                    ? ImageAnalysisService.CreateClippingOverlay(source, cancellationToken)
+                    : null;
+                return (histogram, clipping);
+            }, cancellationToken);
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                HistogramImage = result.histogram;
+                ClippingOverlaySource = result.clipping;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void BuildExifFields(PhotoItem photo)

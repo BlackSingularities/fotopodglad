@@ -1,47 +1,47 @@
+using System.ComponentModel;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Fotopodglad.Models;
-using Fotopodglad.Services;
 using Fotopodglad.ViewModels;
-using System.ComponentModel;
 
 namespace Fotopodglad.Services.GuestGallery;
 
 /// <summary>
-/// Spina hotspot WiFi, lokalny serwer HTTP i generowanie kodów QR w jedną całość widoczną dla UI:
-/// - przy starcie próbuje uruchomić hotspot; jeśli sprzęt nie wspiera trybu AP+STA, funkcja gości
-///   zostaje po cichu wyłączona (Status=Unsupported), reszta aplikacji działa normalnie;
-/// - QR zdjęcia śledzi fotografię faktycznie wyświetlaną w Oknie A;
-/// - po 5 minutach bez pobrania zdjęcia sesja gościa jest resetowana nowym hasłem, ale funkcja hotspotu
-///   pozostaje aktywna; całkowite zatrzymanie następuje dopiero przy zamknięciu aplikacji.
+/// Jeden, serializowany cykl życia hotspotu, serwera pobierania i kodów QR. Koordynator publikuje
+/// pełną diagnostykę dla ustawień, naprawia niespodziewane zatrzymanie maksymalnie trzy razy i nie
+/// restartuje sieci przy zwykłej zmianie wyświetlanego zdjęcia.
 /// </summary>
 public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposable
 {
+    private const int MaximumRepairAttempts = 3;
     private static readonly TimeSpan GuestIdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan IdleCheckInterval = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromSeconds(15);
 
     private readonly IHotspotService _hotspot;
     private readonly GuestGalleryHttpServer _server;
     private readonly IPhotoLibraryService _library;
+    private readonly FullscreenPhotoViewModel _preview;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly DispatcherTimer _idleTimer;
+    private readonly DispatcherTimer _healthTimer;
+    private readonly Dispatcher _dispatcher;
     private long _lastGuestActivityUtcTicks;
     private bool _stopping;
     private bool _disposed;
     private PhotoItem? _displayedPhoto;
 
-    [ObservableProperty]
-    private GuestAccessStatus status = GuestAccessStatus.Unknown;
-
-    [ObservableProperty]
-    private BitmapImage? wifiQrImage;
-
-    [ObservableProperty]
-    private BitmapImage? photoQrImage;
-
-    private readonly FullscreenPhotoViewModel _preview;
+    [ObservableProperty] private GuestAccessStatus status = GuestAccessStatus.Unknown;
+    [ObservableProperty] private string statusMessage = "Nie uruchomiono";
+    [ObservableProperty] private string? localIpAddress;
+    [ObservableProperty] private string? failureReason;
+    [ObservableProperty] private int retryAttempt;
+    [ObservableProperty] private int activeDownloads;
+    [ObservableProperty] private DateTime lastTransitionUtc = DateTime.UtcNow;
+    [ObservableProperty] private BitmapImage? wifiQrImage;
+    [ObservableProperty] private BitmapImage? photoQrImage;
 
     public GuestAccessCoordinator(
         IHotspotService hotspot,
@@ -53,71 +53,91 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
         _server = server;
         _library = library;
         _preview = mainView.Preview;
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _displayedPhoto = _preview.CurrentPhoto;
 
         _server.PhotoDownloaded += OnPhotoDownloaded;
+        _server.StateChanged += OnServerStateChanged;
         _library.NewestChanged += OnNewestChanged;
         _preview.PropertyChanged += OnPreviewPropertyChanged;
 
         _idleTimer = new DispatcherTimer { Interval = IdleCheckInterval };
         _idleTimer.Tick += (_, _) => _ = ResetIdleGuestSessionAsync();
+        _healthTimer = new DispatcherTimer { Interval = HealthCheckInterval };
+        _healthTimer.Tick += (_, _) => _ = RepairIfNeededAsync();
     }
 
-    public async Task StartAsync()
+    public Task StartAsync() => RunLifecycleOperationAsync(async cancellationToken =>
     {
-        try
-        {
-            await _lifecycleGate.WaitAsync(_lifetimeCts.Token);
-        }
-        catch (OperationCanceledException)
+        if (_stopping || Status == GuestAccessStatus.Active)
         {
             return;
         }
 
-        try
+        SetStatus(GuestAccessStatus.Starting, "Uruchamianie hotspotu…");
+        if (!await TryStartWithRepairsAsync(cancellationToken))
         {
-            if (_stopping || Status == GuestAccessStatus.Active)
-            {
-                return;
-            }
-
-            var started = await _hotspot.StartAsync(_lifetimeCts.Token);
-            if (!started || _hotspot.LocalIpAddress is not { } ip || _hotspot.Ssid is not { } ssid || _hotspot.Passphrase is not { } pass)
-            {
-                Status = GuestAccessStatus.Unsupported;
-                return;
-            }
-
-            _server.Start(ip);
-            WifiQrImage = QrCodeService.GenerateWifiJoinQr(ssid, pass);
-            UpdatePhotoQr();
-
-            MarkGuestActivity();
-            _idleTimer.Start();
-            Status = GuestAccessStatus.Active;
+            PublishFailure();
+            return;
         }
-        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+
+        ActivateCurrentSession();
+    });
+
+    private async Task<bool> TryStartWithRepairsAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaximumRepairAttempts; attempt++)
         {
-            _server.Stop();
+            RetryAttempt = attempt;
+            if (await _hotspot.StartAsync(cancellationToken) && HasCompleteConnectionData())
+            {
+                return true;
+            }
+
+            if (_hotspot.FailureKind == HotspotFailureKind.Unsupported)
+            {
+                return false;
+            }
+
             await _hotspot.StopAsync();
-        }
-        catch (Exception)
-        {
-            // Port może być zajęty albo lokalny adres niedostępny. Funkcja gości nie może przez to
-            // zatrzymać startu dwóch głównych widoków ani pozostawić włączonego hotspotu bez serwera.
-            _server.Stop();
-            await _hotspot.StopAsync();
-            WifiQrImage = null;
-            PhotoQrImage = null;
-            if (!_stopping)
+            if (attempt < MaximumRepairAttempts)
             {
-                Status = GuestAccessStatus.Unsupported;
+                SetStatus(GuestAccessStatus.Starting, $"Ponowna próba uruchomienia ({attempt + 1}/{MaximumRepairAttempts})…");
+                await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken);
             }
         }
-        finally
-        {
-            _lifecycleGate.Release();
-        }
+
+        return false;
+    }
+
+    private void ActivateCurrentSession()
+    {
+        var ip = _hotspot.LocalIpAddress!;
+        _server.Start(ip);
+        WifiQrImage = QrCodeService.GenerateWifiJoinQr(_hotspot.Ssid!, _hotspot.Passphrase!);
+        UpdatePhotoQr();
+        MarkGuestActivity();
+        _idleTimer.Start();
+        _healthTimer.Start();
+        RetryAttempt = 0;
+        LocalIpAddress = ip;
+        FailureReason = null;
+        SetStatus(GuestAccessStatus.Active, "Hotspot aktywny");
+    }
+
+    private bool HasCompleteConnectionData() =>
+        _hotspot.LocalIpAddress is not null && _hotspot.Ssid is not null && _hotspot.Passphrase is not null;
+
+    private void PublishFailure()
+    {
+        FailureReason = _hotspot.FailureReason ?? "Nieznany błąd hotspotu.";
+        LocalIpAddress = null;
+        WifiQrImage = null;
+        PhotoQrImage = null;
+        var unsupported = _hotspot.FailureKind == HotspotFailureKind.Unsupported;
+        SetStatus(
+            unsupported ? GuestAccessStatus.Unsupported : GuestAccessStatus.DriverError,
+            unsupported ? "Brak obsługi AP+STA" : "Błąd sterownika lub sieci");
     }
 
     private void UpdatePhotoQr()
@@ -134,7 +154,6 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
     public void SetDisplayedPhoto(PhotoItem? photo)
     {
         _displayedPhoto = photo;
-
         if (Status == GuestAccessStatus.Active)
         {
             UpdatePhotoQr();
@@ -153,18 +172,22 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
 
     private void OnNewestChanged(PhotoItem newest)
     {
-        if (_stopping)
-        {
-            return;
-        }
-
-        if (Status == GuestAccessStatus.Active)
+        if (!_stopping && Status == GuestAccessStatus.Active)
         {
             UpdatePhotoQr();
         }
     }
 
     private void OnPhotoDownloaded() => MarkGuestActivity();
+
+    private void OnServerStateChanged()
+    {
+        _dispatcher.BeginInvoke(() =>
+        {
+            ActiveDownloads = _server.ActiveDownloads;
+            MarkGuestActivity();
+        });
+    }
 
     private void MarkGuestActivity() =>
         Interlocked.Exchange(ref _lastGuestActivityUtcTicks, DateTime.UtcNow.Ticks);
@@ -177,6 +200,63 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
             return;
         }
 
+        await RunLifecycleOperationAsync(async cancellationToken =>
+        {
+            if (_stopping || Status != GuestAccessStatus.Active || !IsGuestIdleAt(checkTime))
+            {
+                return;
+            }
+
+            SetStatus(GuestAccessStatus.Resetting, "Resetowanie hasła gości…");
+            _idleTimer.Stop();
+            _server.Stop();
+
+            var restarted = await _hotspot.RestartWithFreshCredentialsAsync(cancellationToken);
+            if (!restarted || !HasCompleteConnectionData())
+            {
+                PublishFailure();
+                return;
+            }
+
+            ActivateCurrentSession();
+        });
+    }
+
+    private Task RepairIfNeededAsync()
+    {
+        if (_stopping || Status != GuestAccessStatus.Active || _hotspot.IsActive)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunLifecycleOperationAsync(async cancellationToken =>
+        {
+            if (_stopping || _hotspot.IsActive)
+            {
+                return;
+            }
+
+            _server.Stop();
+            SetStatus(GuestAccessStatus.Starting, "Naprawianie hotspotu…");
+            if (await TryStartWithRepairsAsync(cancellationToken))
+            {
+                ActivateCurrentSession();
+            }
+            else
+            {
+                PublishFailure();
+            }
+        });
+    }
+
+    private bool IsGuestIdleAt(DateTime utcNow)
+    {
+        var ticks = Interlocked.Read(ref _lastGuestActivityUtcTicks);
+        return ticks > 0 && utcNow - new DateTime(ticks, DateTimeKind.Utc) >= GuestIdleTimeout;
+    }
+
+    private async Task RunLifecycleOperationAsync(Func<CancellationToken, Task> action)
+    {
         try
         {
             await _lifecycleGate.WaitAsync(_lifetimeCts.Token);
@@ -188,61 +268,34 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
 
         try
         {
-            // Pobranie mogło zakończyć się, gdy czekaliśmy na trwającą operację sieciową.
-            if (_stopping || Status != GuestAccessStatus.Active || !IsGuestIdleAt(checkTime))
-            {
-                return;
-            }
-
-            _idleTimer.Stop();
-            _server.Stop();
-
-            var restarted = await _hotspot.RestartWithFreshCredentialsAsync(_lifetimeCts.Token);
-            if (!restarted || _hotspot.LocalIpAddress is not { } ip ||
-                _hotspot.Ssid is not { } ssid || _hotspot.Passphrase is not { } pass)
-            {
-                WifiQrImage = null;
-                PhotoQrImage = null;
-                Status = GuestAccessStatus.Unsupported;
-                return;
-            }
-
-            _server.Start(ip);
-            WifiQrImage = QrCodeService.GenerateWifiJoinQr(ssid, pass);
-            UpdatePhotoQr();
-            MarkGuestActivity();
+            await action(_lifetimeCts.Token);
         }
         catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
         {
             _server.Stop();
             await _hotspot.StopAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _server.Stop();
             await _hotspot.StopAsync();
-            WifiQrImage = null;
-            PhotoQrImage = null;
+            FailureReason = ex.Message;
             if (!_stopping)
             {
-                Status = GuestAccessStatus.Unsupported;
+                SetStatus(GuestAccessStatus.DriverError, "Błąd sterownika lub serwera");
             }
         }
         finally
         {
-            if (!_stopping && Status == GuestAccessStatus.Active)
-            {
-                _idleTimer.Start();
-            }
-
             _lifecycleGate.Release();
         }
     }
 
-    private bool IsGuestIdleAt(DateTime utcNow)
+    private void SetStatus(GuestAccessStatus newStatus, string message)
     {
-        var ticks = Interlocked.Read(ref _lastGuestActivityUtcTicks);
-        return ticks > 0 && utcNow - new DateTime(ticks, DateTimeKind.Utc) >= GuestIdleTimeout;
+        Status = newStatus;
+        StatusMessage = message;
+        LastTransitionUtc = DateTime.UtcNow;
     }
 
     public void Dispose()
@@ -256,7 +309,9 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
         _stopping = true;
         _lifetimeCts.Cancel();
         _idleTimer.Stop();
+        _healthTimer.Stop();
         _server.PhotoDownloaded -= OnPhotoDownloaded;
+        _server.StateChanged -= OnServerStateChanged;
         _library.NewestChanged -= OnNewestChanged;
         _preview.PropertyChanged -= OnPreviewPropertyChanged;
         _server.Stop();
@@ -268,6 +323,7 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
         _stopping = true;
         _lifetimeCts.Cancel();
         _idleTimer.Stop();
+        _healthTimer.Stop();
         await _lifecycleGate.WaitAsync();
         try
         {
@@ -275,7 +331,8 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
             await _hotspot.StopAsync();
             WifiQrImage = null;
             PhotoQrImage = null;
-            Status = GuestAccessStatus.IdleStopped;
+            LocalIpAddress = null;
+            SetStatus(GuestAccessStatus.IdleStopped, "Hotspot zatrzymany");
         }
         finally
         {

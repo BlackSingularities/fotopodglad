@@ -16,16 +16,25 @@ namespace Fotopodglad.Services;
 /// </summary>
 public sealed class FolderWatcherService : IFolderWatcherService
 {
-    private static readonly string[] SupportedExtensions = [".jpg", ".jpeg"];
+    public static readonly string[] SupportedExtensions =
+    [
+        ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".heic", ".heif",
+        ".arw", ".nef", ".nrw", ".cr2", ".cr3", ".raf", ".dng", ".rw2", ".orf", ".pef"
+    ];
 
     private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _cts;
     private Channel<string>? _pendingFiles;
     private readonly HashSet<string> _knownFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _knownFilesLock = new();
+    private readonly object _watcherLock = new();
+    private string? _folderPath;
 
     public event Action<string, bool>? PhotoReady;
     public event Action? InitialScanCompleted;
+    public event Action<bool, string?>? AvailabilityChanged;
+    public bool IsAvailable { get; private set; }
+    public string? AvailabilityMessage { get; private set; }
 
     public void Start(string folderPath)
     {
@@ -38,6 +47,7 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
         _cts = new CancellationTokenSource();
         _pendingFiles = Channel.CreateUnbounded<string>();
+        _folderPath = folderPath;
 
         // Najpierw robimy migawkę zaległości i oznaczamy ją jako znaną. Dzięki temu zdarzenia watchera
         // nie wyślą tych samych plików drugi raz, gdy jest uruchamiany równolegle ze skanem startowym.
@@ -52,34 +62,38 @@ public sealed class FolderWatcherService : IFolderWatcherService
             }
         }
 
-        _watcher = new FileSystemWatcher(folderPath)
-        {
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-            IncludeSubdirectories = false,
-            InternalBufferSize = 65536
-        };
-        _watcher.Created += OnFileSystemEvent;
-        _watcher.Renamed += OnFileSystemEvent;
-        _watcher.Deleted += OnFileDeleted;
-        _watcher.Error += OnWatcherError;
-        _watcher.EnableRaisingEvents = true;
+        CreateWatcher(folderPath);
+        SetAvailability(true, null);
 
         _ = ProcessQueueAsync(_pendingFiles.Reader, _cts.Token);
         _ = PollFallbackLoopAsync(folderPath, _cts.Token);
         _ = LoadBacklogAsync(backlog, _cts.Token);
     }
 
+    private void CreateWatcher(string folderPath)
+    {
+        lock (_watcherLock)
+        {
+            DisposeWatcherCore();
+            _watcher = new FileSystemWatcher(folderPath)
+            {
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                IncludeSubdirectories = false,
+                InternalBufferSize = 65536
+            };
+            _watcher.Created += OnFileSystemEvent;
+            _watcher.Renamed += OnFileSystemEvent;
+            _watcher.Deleted += OnFileDeleted;
+            _watcher.Error += OnWatcherError;
+            _watcher.EnableRaisingEvents = true;
+        }
+    }
+
     public void Stop()
     {
-        if (_watcher is not null)
+        lock (_watcherLock)
         {
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Created -= OnFileSystemEvent;
-            _watcher.Renamed -= OnFileSystemEvent;
-            _watcher.Deleted -= OnFileDeleted;
-            _watcher.Error -= OnWatcherError;
-            _watcher.Dispose();
-            _watcher = null;
+            DisposeWatcherCore();
         }
 
         _cts?.Cancel();
@@ -88,6 +102,24 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
         _pendingFiles?.Writer.TryComplete();
         _pendingFiles = null;
+        _folderPath = null;
+        SetAvailability(false, "Obserwowanie folderu zatrzymane.");
+    }
+
+    private void DisposeWatcherCore()
+    {
+        if (_watcher is null)
+        {
+            return;
+        }
+
+        _watcher.EnableRaisingEvents = false;
+        _watcher.Created -= OnFileSystemEvent;
+        _watcher.Renamed -= OnFileSystemEvent;
+        _watcher.Deleted -= OnFileDeleted;
+        _watcher.Error -= OnWatcherError;
+        _watcher.Dispose();
+        _watcher = null;
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
@@ -99,8 +131,12 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
     private void OnWatcherError(object sender, ErrorEventArgs e)
     {
-        // FileSystemWatcher potrafi przestać raportować zdarzenia po błędzie wewnętrznym (np. przepełnienie
-        // bufora) — polling fallback w PollFallbackLoopAsync i tak nadrobi zgubione pliki.
+        lock (_watcherLock)
+        {
+            DisposeWatcherCore();
+        }
+
+        SetAvailability(false, e.GetException()?.Message ?? "Monitor folderu przestał odpowiadać.");
     }
 
     private void EnqueueIfSupported(string fullPath)
@@ -132,20 +168,23 @@ public sealed class FolderWatcherService : IFolderWatcherService
     {
         try
         {
-            var stabilityResults = await Task.WhenAll(
-                existing.Select(path => FileStabilityChecker.WaitUntilStableAsync(path, TimeSpan.FromSeconds(15), cancellationToken)));
-
-            for (var i = 0; i < existing.Count; i++)
+            // Nie tworzymy kilku tysięcy zadań jednocześnie. Ograniczona pula utrzymuje płynność
+            // startu i przewidywalne użycie pamięci również przy bardzo dużych sesjach.
+            await Parallel.ForEachAsync(existing, new ParallelOptions
             {
-                if (stabilityResults[i])
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8)
+            }, async (path, token) =>
+            {
+                if (await FileStabilityChecker.WaitUntilStableAsync(path, TimeSpan.FromSeconds(15), token))
                 {
-                    PhotoReady?.Invoke(existing[i], true);
+                    PhotoReady?.Invoke(path, true);
                 }
                 else
                 {
-                    ForgetFile(existing[i]);
+                    ForgetFile(path);
                 }
-            }
+            });
         }
         catch (OperationCanceledException)
         {
@@ -163,6 +202,31 @@ public sealed class FolderWatcherService : IFolderWatcherService
             {
                 await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
 
+                if (!Directory.Exists(folderPath))
+                {
+                    lock (_watcherLock)
+                    {
+                        DisposeWatcherCore();
+                    }
+
+                    SetAvailability(false, "Folder lub dysk jest niedostępny. Oczekiwanie na ponowne podłączenie…");
+                    continue;
+                }
+
+                if (!IsAvailable || _watcher is null)
+                {
+                    try
+                    {
+                        CreateWatcher(folderPath);
+                        SetAvailability(true, "Folder ponownie dostępny — obserwowanie wznowione.");
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+                    {
+                        SetAvailability(false, ex.Message);
+                        continue;
+                    }
+                }
+
                 foreach (var path in EnumerateSupportedFiles(folderPath))
                 {
                     EnqueueIfSupported(path);
@@ -172,6 +236,18 @@ public sealed class FolderWatcherService : IFolderWatcherService
         catch (OperationCanceledException)
         {
         }
+    }
+
+    private void SetAvailability(bool available, string? message)
+    {
+        if (IsAvailable == available && string.Equals(AvailabilityMessage, message, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        IsAvailable = available;
+        AvailabilityMessage = message;
+        AvailabilityChanged?.Invoke(available, message);
     }
 
     private static IEnumerable<string> EnumerateSupportedFiles(string folderPath)

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Fotopodglad.Configuration;
+using Fotopodglad.Models;
 using Fotopodglad.Services;
 
 namespace Fotopodglad.Services.GuestGallery;
@@ -14,12 +16,14 @@ public sealed class GuestGalleryHttpServer : IDisposable
 {
     private readonly IPhotoLibraryService _library;
     private readonly int _configuredPort;
+    private readonly SemaphoreSlim _downloadSlots;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
     public event Action? PhotoDownloaded;
+    public event Action? StateChanged;
 
-    public GuestGalleryHttpServer(IPhotoLibraryService library, int port = 8080)
+    public GuestGalleryHttpServer(IPhotoLibraryService library, AppSettings? settings = null, int port = 8080)
     {
         if (port is < 0 or > 65535)
         {
@@ -29,9 +33,11 @@ public sealed class GuestGalleryHttpServer : IDisposable
         _library = library;
         _configuredPort = port;
         Port = port;
+        _downloadSlots = new SemaphoreSlim(Math.Clamp(settings?.MaxConcurrentDownloads ?? 3, 1, 20));
     }
 
     public int Port { get; private set; }
+    public int ActiveDownloads { get; private set; }
 
     public void Start(string localIpAddress)
     {
@@ -115,22 +121,28 @@ public sealed class GuestGalleryHttpServer : IDisposable
                     return;
                 }
 
-                var safeFileName = photo.FileName.Replace("\"", "'").Replace("\r", "").Replace("\n", "");
-                await using var photoStream = new FileStream(
-                    photo.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
-                    bufferSize: 81920, useAsync: true);
+                if (!await _downloadSlots.WaitAsync(0, cancellationToken))
+                {
+                    await WriteErrorAsync(stream, HttpStatusCode.TooManyRequests, cancellationToken);
+                    return;
+                }
 
-                var headers =
-                    "HTTP/1.1 200 OK\r\n" +
-                    "Content-Type: image/jpeg\r\n" +
-                    $"Content-Disposition: attachment; filename=\"{safeFileName}\"\r\n" +
-                    $"Content-Length: {photoStream.Length}\r\n" +
-                    "Connection: close\r\n\r\n";
+                Interlocked.Increment(ref activeDownloadsBackingField);
+                ActiveDownloads = Volatile.Read(ref activeDownloadsBackingField);
+                StateChanged?.Invoke();
 
-                await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
-                await photoStream.CopyToAsync(stream, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-                PhotoDownloaded?.Invoke();
+                try
+                {
+                    await SendPhotoAsync(stream, photo, cancellationToken);
+                    PhotoDownloaded?.Invoke();
+                }
+                finally
+                {
+                    _downloadSlots.Release();
+                    Interlocked.Decrement(ref activeDownloadsBackingField);
+                    ActiveDownloads = Volatile.Read(ref activeDownloadsBackingField);
+                    StateChanged?.Invoke();
+                }
             }
             catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
             {
@@ -138,6 +150,37 @@ public sealed class GuestGalleryHttpServer : IDisposable
             }
         }
     }
+
+    private int activeDownloadsBackingField;
+
+    private static async Task SendPhotoAsync(NetworkStream stream, PhotoItem photo, CancellationToken cancellationToken)
+    {
+        var safeFileName = photo.FileName.Replace("\"", "'").Replace("\r", "").Replace("\n", "");
+        await using var photoStream = new FileStream(
+            photo.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 81920, useAsync: true);
+
+        var headers =
+            "HTTP/1.1 200 OK\r\n" +
+            $"Content-Type: {GetContentType(photo.FilePath)}\r\n" +
+            $"Content-Disposition: attachment; filename=\"{safeFileName}\"\r\n" +
+            $"Content-Length: {photoStream.Length}\r\n" +
+            "Connection: close\r\n\r\n";
+
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
+        await photoStream.CopyToAsync(stream, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    private static string GetContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".tif" or ".tiff" => "image/tiff",
+        ".heic" or ".heif" => "image/heic",
+        ".dng" => "image/x-adobe-dng",
+        _ => "application/octet-stream"
+    };
 
     private static bool TryGetSequenceId(string? requestLine, out long sequenceId)
     {
@@ -161,7 +204,12 @@ public sealed class GuestGalleryHttpServer : IDisposable
 
     private static async Task WriteErrorAsync(NetworkStream stream, HttpStatusCode statusCode, CancellationToken cancellationToken)
     {
-        var reason = statusCode == HttpStatusCode.NotFound ? "Not Found" : "Bad Request";
+        var reason = statusCode switch
+        {
+            HttpStatusCode.NotFound => "Not Found",
+            HttpStatusCode.TooManyRequests => "Too Many Requests",
+            _ => "Bad Request"
+        };
         var body = Encoding.UTF8.GetBytes(reason);
         var headers =
             $"HTTP/1.1 {(int)statusCode} {reason}\r\n" +

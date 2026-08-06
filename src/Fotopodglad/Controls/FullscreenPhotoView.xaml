@@ -6,7 +6,7 @@
              xmlns:controls="clr-namespace:Fotopodglad.Controls"
              xmlns:vm="clr-namespace:Fotopodglad.ViewModels"
              mc:Ignorable="d"
-             Background="{StaticResource Brush.Background}">
+             Background="{DynamicResource Brush.Background}">
     <Grid>
         <Grid.Resources>
             <Storyboard x:Key="FadeIn">
@@ -20,7 +20,7 @@
 
         <TextBlock Text="Oczekiwanie na zdjęcia…"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="24" Foreground="{StaticResource Brush.TextSecondary}"
+                   FontSize="24" Foreground="{DynamicResource Brush.TextSecondary}"
                    IsHitTestVisible="False">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
@@ -37,7 +37,7 @@
         <!-- Overlay z danymi EXIF, w lewym dolnym rogu. -->
         <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
                 Margin="48" Padding="28,22"
-                Background="{StaticResource Brush.SurfaceOverlay}"
+                Background="{DynamicResource Brush.SurfaceOverlay}"
                 CornerRadius="10">
             <Border.Style>
                 <Style TargetType="Border">
@@ -56,11 +56,27 @@
                 <ItemsControl ItemsSource="{Binding ExifFields}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ExifFieldViewModel}">
-                            <controls:ExifBadge IconResourceKey="{Binding IconResourceKey}" Text="{Binding Text}"/>
+                            <controls:ExifBadge IconResourceKey="{Binding IconResourceKey}" Text="{Binding Text}"
+                                                TextSize="{Binding DataContext.ExifTextSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </StackPanel>
+        </Border>
+
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="48" Padding="10"
+                Background="{DynamicResource Brush.SurfaceOverlay}" CornerRadius="8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HistogramImage}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Image Source="{Binding HistogramImage}" Width="256" Height="120" Stretch="Fill"/>
         </Border>
     </Grid>
 </UserControl>

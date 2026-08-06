@@ -8,7 +8,7 @@
     </ResourceDictionary.MergedDictionaries>
 
     <Style x:Key="Style.ExifIcon" TargetType="Path">
-        <Setter Property="Stroke" Value="{StaticResource Brush.TextPrimary}"/>
+        <Setter Property="Stroke" Value="{DynamicResource Brush.TextPrimary}"/>
         <Setter Property="StrokeThickness" Value="1.6"/>
         <Setter Property="StrokeLineJoin" Value="Round"/>
         <Setter Property="StrokeStartLineCap" Value="Round"/>
@@ -22,7 +22,7 @@
     </Style>
 
     <Style x:Key="Style.ExifText" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
         <Setter Property="FontFamily" Value="{StaticResource Font.Primary}"/>
         <Setter Property="FontSize" Value="{StaticResource FontSize.Badge}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>

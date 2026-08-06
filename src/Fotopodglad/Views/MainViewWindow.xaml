@@ -7,6 +7,6 @@
         ResizeMode="CanMinimize"
         WindowStartupLocation="Manual"
         KeyDown="OnKeyDown"
-        Background="{StaticResource Brush.Background}">
+        Background="{DynamicResource Brush.Background}">
     <controls:FullscreenPhotoView DataContext="{Binding Preview}"/>
 </Window>

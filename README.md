@@ -2,13 +2,18 @@
 
 Aplikacja desktopowa (WPF, .NET 8) dla fotografa pracującego na dwóch monitorach podczas sesji zdjęciowej. Karta pamięci WiFi w aparacie zapisuje zdjęcia na bieżąco do wskazanego folderu na dysku — aplikacja obserwuje ten folder i pokazuje efekty sesji na żywo, bez żadnej dodatkowej interakcji.
 
-## Funkcje
+## Funkcje wersji 2.0
 
 - **Okno A (Ekran 1)** — pełnoekranowy, pozbawiony jakichkolwiek kontrolek podgląd zawsze najnowszego zdjęcia: nazwa pliku, godzina, parametry ekspozycji (przysłona, czas, ISO, ogniskowa i pełna nazwa programu ekspozycji), wymiary i rozmiar pliku — każde z osobną ikoną wektorową (bez emoji/fontów ikon). Możliwość przybliżania kółkiem myszy.
 - **Okno B (Ekran 2)** — pełnoekranowa, przewijana siatka równych kafelków 3:2 ze wszystkimi zdjęciami z sesji, najnowsze zawsze na górze. Miniatury są równo przycinane, a kliknięcie pokazuje wybrane zdjęcie w Oknie A przez ustawiony czas; siatka pozostaje cały czas widoczna.
 - **1 lub 2 monitory** — przy dwóch monitorach podgląd i siatka zajmują osobne ekrany. Przy jednym podgląd zajmuje górne 60%, a przewijana siatka dolne 40% szerokości ekranu. Panel QR pozostaje w prawym dolnym rogu.
-- **Ustawienia** — dostępne przy starcie i w dowolnym momencie skrótem `Ctrl+P`. Pozwalają m.in. zmienić obserwowany folder zdjęć, pokazać lub ukryć panel parametrów i subtelną instrukcję dla gości, włączyć/wyłączyć automatyczny hotspot, ustawić wielkość QR i czas ręcznego podglądu od 3 do 900 sekund. Po zapisaniu aplikacja uruchamia się ponownie.
-- **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot WiFi; w osobnej, automatycznie zwijanej kolumnie Okna B widoczne są dwa kody QR (dołączenie do sieci + pobranie zdjęcia aktualnie wyświetlanego w Oknie A), dzięki czemu panel nie zasłania miniatur. Start automatycznie ponawia się przy przejściowym błędzie Windows, a poprzedni stan hotspotu jest porządkowany przed konfiguracją. Sieć wyłącza się automatycznie po 5 minutach bezczynności i wznawia przy nowym zdjęciu.
+- **Rozbudowane ustawienia i diagnostyka** — `Ctrl+P` otwiera konfigurację folderu, ekranów, filtrów, histogramu, ostrzeżeń ekspozycji, cache, motywu, języka, skali UI, tekstu EXIF/instrukcji i pobierania. Osobna karta pokazuje stan hotspotu, adres IP, próby naprawy, błąd sterownika/AP+STA, aktywne pobrania i dostępność folderu. Zmiany wizualne są stosowane na żywo; restart następuje tylko dla folderu, ekranów lub hotspotu.
+- **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot Wi‑Fi; dwa kody QR służą do dołączenia do sieci i pobrania dokładnie zdjęcia widocznego w podglądzie. Plik jest wysyłany w oryginalnej jakości, bez rekompresji. Limit równoległych pobrań chroni aplikację, start ma maksymalnie trzy kontrolowane próby, a po pięciu minutach bez pobierania hasło sesji jest zmieniane.
+- **Odporność na sprzęt** — utrata dysku/karty/folderu daje czytelne ostrzeżenie, a obserwowanie automatycznie wraca po odzyskaniu ścieżki. Odłączenie drugiego monitora przełącza aplikację na układ jednoekranowy. Pozycje okien są zapamiętywane.
+- **Narzędzia fotografa** — przełączany histogram jasności lub RGB, oznaczenia przepaleń i niedoświetleń, powiększenie do 100% dwuklikiem, ograniczone przesuwanie oraz pełne nazwy programów ekspozycji.
+- **Duże sesje i nowe formaty** — wirtualizowana regularna siatka, priorytet widocznych miniaturek, anulowanie starych dekodowań i limitowany cache RAM pozwalają pracować z tysiącami zdjęć. Oprócz JPEG/PNG/TIFF obsługiwane są HEIC/HEIF oraz RAW: ARW, NEF/NRW, CR2/CR3, RAF, DNG, RW2, ORF i PEF.
+- **Skróty** — `Ctrl+P` ustawienia, `Esc` reset powiększenia, `Home` najnowsze zdjęcie, `←`/`→` poprzednie/następne, `Ctrl+M` minimalizacja, `F11` pełny ekran/tryb okienkowy.
+- **Aktualizacje** — aplikacja może raz na dobę sprawdzić najnowsze wydanie na GitHubie. Interfejs automatycznie wybiera polski lub angielski zgodnie z językiem systemu; dostępne są motywy automatyczny, ciemny i jasny.
 - **Dopasowane zasoby graficzne** — aplikacja zawiera osobne ikony PNG od 16 do 256 px oraz wielorozmiarowe ICO, dzięki czemu logo pozostaje ostre w oknie, na pasku zadań i w Eksploratorze Windows.
 - **Aplikacja nigdzie nie zapisuje kopii zdjęć.** Miniatury w siatce są cache'owane wyłącznie w pamięci RAM, serwer HTTP dla gości czyta i wysyła bajty bezpośrednio z oryginalnego pliku. Jedyny zapisywany plik to `settings.json` (ścieżka folderu i ustawienia, w `%AppData%\Fotopodglad`).
 
@@ -35,6 +40,8 @@ dotnet run --project src/Fotopodglad/Fotopodglad.csproj
 ```bash
 dotnet publish src/Fotopodglad/Fotopodglad.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/win-x64
 ```
+
+Wydania tagowane `v*` są automatycznie testowane i publikowane przez GitHub Actions. Jeśli repozytorium zawiera sekrety `WINDOWS_SIGNING_PFX_BASE64` i `WINDOWS_SIGNING_PFX_PASSWORD`, EXE jest przed publikacją podpisywany cyfrowo i znakowany czasem. Bez certyfikatu powstaje poprawny, ale niepodpisany plik.
 
 ## Struktura projektu
 
