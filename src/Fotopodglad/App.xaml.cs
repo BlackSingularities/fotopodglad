@@ -24,6 +24,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Podczas startu kolejno zamykają się modalne okna wyboru folderu i ustawień.
+        // Nie mogą one zakończyć aplikacji jako "ostatnie okno", zanim pokażą się oba okna główne.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         var settings = AppSettings.Load();
         var folderPath = PromptForFolder(settings);
         if (folderPath is null)
@@ -77,6 +81,8 @@ public partial class App : Application
 
         mainViewWindow.Show();
         gridWindow.Show();
+
+        ShutdownMode = ShutdownMode.OnLastWindowClose;
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -108,9 +114,6 @@ public partial class App : Application
         // Po zamknięciu FolderBrowserDialog Windows nie zawsze oddaje fokus aplikacji WPF.
         // MessageBox bez właściciela jest wtedy widoczny dopiero po kliknięciu aplikacji na pasku zadań.
         // Niewidoczne, aktywowane okno-właściciel wymusza pokazanie pytania od razu na pierwszym planie.
-        var previousShutdownMode = ShutdownMode;
-        ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
         var owner = new Window
         {
             Width = 1,
@@ -142,7 +145,6 @@ public partial class App : Application
         finally
         {
             owner.Close();
-            ShutdownMode = previousShutdownMode;
         }
     }
 
