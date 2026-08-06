@@ -130,24 +130,45 @@ public sealed class ExifService : IExifService
 
         try
         {
-            var value = metadata.GetQuery(query);
-            return value switch
-            {
-                null => null,
-                double d => d,
-                float f => f,
-                decimal m => (double)m,
-                int i => i,
-                uint u => u,
-                ulong ul => ul,
-                string s when double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
-                _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
-            };
+            return DecodeMetadataNumericValue(metadata.GetQuery(query));
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
         {
             return null;
         }
+    }
+
+    internal static double? DecodeMetadataNumericValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            double d => d,
+            float f => f,
+            decimal m => (double)m,
+            int i => i,
+            uint u => u,
+            // WIC zwraca EXIF RATIONAL jako ulong: licznik w młodszych 32 bitach,
+            // mianownik w starszych. Np. 0x0000000A00000038 oznacza 56/10 = f/5.6.
+            ulong ul => DecodeUnsignedRational(ul),
+            long l => DecodeSignedRational(l),
+            string s when double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static double? DecodeUnsignedRational(ulong packed)
+    {
+        var numerator = (uint)(packed & uint.MaxValue);
+        var denominator = (uint)(packed >> 32);
+        return denominator == 0 ? numerator : (double)numerator / denominator;
+    }
+
+    private static double? DecodeSignedRational(long packed)
+    {
+        var numerator = unchecked((int)(packed & uint.MaxValue));
+        var denominator = unchecked((int)((ulong)packed >> 32));
+        return denominator == 0 ? numerator : (double)numerator / denominator;
     }
 
     private static int? TryGetInt(BitmapMetadata metadata, string query)

@@ -32,7 +32,9 @@
         </TextBlock>
 
         <controls:FullscreenPhotoView DataContext="{Binding Overlay}"
-                                       Visibility="{Binding IsOverlayVisible, Converter={StaticResource BoolToVisibility}}"
+                                       Visibility="{Binding DataContext.IsOverlayVisible,
+                                           RelativeSource={RelativeSource AncestorType={x:Type Window}},
+                                           Converter={StaticResource BoolToVisibility}}"
                                        Panel.ZIndex="10"/>
 
         <Grid x:Name="GuestSidebarHost" Panel.ZIndex="20"

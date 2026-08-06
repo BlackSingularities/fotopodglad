@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using Fotopodglad.Configuration;
 using Fotopodglad.Models;
 using Fotopodglad.Services.GuestGallery;
 
@@ -8,9 +9,14 @@ namespace Fotopodglad.Controls;
 
 public partial class GuestAccessSidebar : UserControl
 {
-    public GuestAccessSidebar()
+    public GuestAccessSidebar(AppSettings settings)
     {
         InitializeComponent();
+        var qrCodeSize = Math.Clamp(settings.QrCodeSize, 96, 320);
+        WifiQrImage.Width = qrCodeSize;
+        WifiQrImage.Height = qrCodeSize;
+        PhotoQrImage.Width = qrCodeSize;
+        PhotoQrImage.Height = qrCodeSize;
         DataContextChanged += OnDataContextChanged;
     }
 

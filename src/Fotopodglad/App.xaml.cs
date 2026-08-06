@@ -70,6 +70,10 @@ public partial class App : Application
         // odłączono (np. inny zestaw monitorów niż przy poprzednim zapisie ustawień).
         var mainViewScreenIndex = Math.Clamp(settings.MainViewScreenIndex, 0, screens.Count - 1);
         var gridScreenIndex = Math.Clamp(settings.GridScreenIndex, 0, screens.Count - 1);
+        if (screens.Count > 1 && gridScreenIndex == mainViewScreenIndex)
+        {
+            gridScreenIndex = (mainViewScreenIndex + 1) % screens.Count;
+        }
         var screenA = screens[mainViewScreenIndex];
         var screenB = screens[gridScreenIndex];
 
