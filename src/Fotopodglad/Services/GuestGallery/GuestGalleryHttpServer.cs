@@ -52,10 +52,22 @@ public sealed class GuestGalleryHttpServer : IDisposable
         // Adapter Mobile Hotspot potrafi zmienić swój stan pomiędzy wykryciem adresu a Start().
         // Nasłuch na Any eliminuje błąd WSAEADDRNOTAVAIL („adres nieprawidłowy w tym kontekście”),
         // natomiast QR nadal reklamuje wyłącznie przekazany adres lokalny sieci hotspotu.
-        _listener = new TcpListener(address.AddressFamily == AddressFamily.InterNetworkV6
+        var listenAddress = address.AddressFamily == AddressFamily.InterNetworkV6
             ? IPAddress.IPv6Any
-            : IPAddress.Any, _configuredPort);
-        _listener.Start();
+            : IPAddress.Any;
+        _listener = new TcpListener(listenAddress, _configuredPort);
+        try
+        {
+            _listener.Start();
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse && _configuredPort != 0)
+        {
+            // Poprzednia instancja aplikacji, antywirus albo inna usługa może jeszcze trzymać 8080.
+            // QR zawiera Port odczytany po starcie, więc bezpiecznie przechodzimy na wolny port systemowy.
+            _listener.Stop();
+            _listener = new TcpListener(listenAddress, 0);
+            _listener.Start();
+        }
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
 
         _ = AcceptLoopAsync(_listener, _cts.Token);

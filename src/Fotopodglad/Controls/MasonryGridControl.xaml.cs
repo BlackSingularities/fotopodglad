@@ -19,7 +19,7 @@ namespace Fotopodglad.Controls;
 /// </summary>
 public partial class MasonryGridControl : UserControl
 {
-    private const double ViewportBufferRatio = 1.0; // dodatkowy bufor nad/pod viewportem, w wysokościach ekranu
+    private const double ViewportBufferRatio = 0.2; // mały bufor: najpierw zdjęcia faktycznie widoczne
 
     private int _columnCount = 6;
 
@@ -205,7 +205,7 @@ public partial class MasonryGridControl : UserControl
             return;
         }
 
-        BitmapImage? bitmap;
+        BitmapSource? bitmap;
         try
         {
             bitmap = await _thumbnailCache.GetThumbnailAsync(item.FilePath, decodeWidth, cancellationToken);

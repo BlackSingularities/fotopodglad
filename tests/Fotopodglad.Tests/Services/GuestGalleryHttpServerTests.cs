@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
 using Fotopodglad.Services.GuestGallery;
@@ -63,6 +64,29 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         using var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/photo/1");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Start_ChoosesFreePortWhenDefaultPortIsAlreadyInUse()
+    {
+        var library = new FakePhotoLibrary();
+        var blocker = new TcpListener(IPAddress.Any, 0);
+        blocker.Start();
+        var occupiedPort = ((IPEndPoint)blocker.LocalEndpoint).Port;
+        try
+        {
+            using var server = new GuestGalleryHttpServer(library, port: occupiedPort);
+            server.Start("192.168.137.1");
+
+            Assert.NotEqual(occupiedPort, server.Port);
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/photo/1");
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+        finally
+        {
+            blocker.Stop();
+        }
     }
 
     public void Dispose()

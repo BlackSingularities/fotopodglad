@@ -5,6 +5,32 @@ namespace Fotopodglad.Helpers;
 
 public static class BitmapHelper
 {
+    public static BitmapSource? LoadEmbeddedThumbnailFrozen(
+        string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+            var thumbnail = decoder.Frames.FirstOrDefault()?.Thumbnail;
+            if (thumbnail is null || thumbnail.PixelWidth < 96 || thumbnail.PixelHeight < 64)
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var detached = new WriteableBitmap(thumbnail);
+            detached.Freeze();
+            return detached;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Ładuje bitmapę z dysku, opcjonalnie dekodując od razu w zmniejszonej rozdzielczości (miniatury),
     /// i zamraża ją (Freeze), żeby można było bezpiecznie użyć wyniku z dowolnego wątku i cache'ować go.

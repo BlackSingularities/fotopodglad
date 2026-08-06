@@ -19,10 +19,12 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 {
     private readonly IPhotoLibraryService _library;
     private readonly AppSettings _settings;
+    private readonly IExifService _exifService;
     private readonly DispatcherTimer _manualHoldTimer;
     private int _loadToken;
     private CancellationTokenSource? _imageLoadCts;
     private CancellationTokenSource? _analysisCts;
+    private CancellationTokenSource? _metadataLoadCts;
 
     public event Action? ZoomResetRequested;
 
@@ -49,10 +51,11 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 
     public ObservableCollection<ExifFieldViewModel> ExifFields { get; } = new();
 
-    public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings)
+    public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings, IExifService? exifService = null)
     {
         _library = library;
         _settings = settings;
+        _exifService = exifService ?? new ExifService();
         showPhotoParameters = settings.ShowPhotoParameters;
         exifTextSize = settings.ExifTextSize * AppearanceService.ScaleFactor(settings);
         var manualHoldDuration = TimeSpan.FromSeconds(Math.Clamp(
@@ -147,7 +150,34 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 
         CurrentPhoto = photo;
         BuildExifFields(photo);
+        _ = LoadMetadataAsync(photo);
         _ = LoadImageAsync(photo);
+    }
+
+    private async Task LoadMetadataAsync(PhotoItem photo)
+    {
+        if (photo.MetadataLoaded)
+        {
+            return;
+        }
+
+        _metadataLoadCts?.Cancel();
+        _metadataLoadCts?.Dispose();
+        _metadataLoadCts = new CancellationTokenSource();
+        var cancellationToken = _metadataLoadCts.Token;
+        try
+        {
+            var metadata = await _exifService.ExtractAsync(photo.FilePath, cancellationToken);
+            if (!cancellationToken.IsCancellationRequested && ReferenceEquals(CurrentPhoto, photo))
+            {
+                photo.Exif = metadata;
+                photo.MetadataLoaded = true;
+                BuildExifFields(photo);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private async Task LoadImageAsync(PhotoItem photo)
