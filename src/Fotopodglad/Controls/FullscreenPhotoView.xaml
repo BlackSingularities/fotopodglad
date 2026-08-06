@@ -1,0 +1,37 @@
+<UserControl x:Class="Fotopodglad.Controls.FullscreenPhotoView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:Fotopodglad.Controls"
+             xmlns:vm="clr-namespace:Fotopodglad.ViewModels"
+             mc:Ignorable="d"
+             Background="{StaticResource Brush.Background}">
+    <Grid>
+        <Grid.Resources>
+            <Storyboard x:Key="FadeIn">
+                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25"/>
+            </Storyboard>
+        </Grid.Resources>
+
+        <!-- Warstwa A i B pozwalają na crossfade między kolejnymi zdjęciami bez migotania. -->
+        <controls:ZoomableImage x:Name="LayerA" Opacity="1"/>
+        <controls:ZoomableImage x:Name="LayerB" Opacity="0"/>
+
+        <!-- Overlay z danymi EXIF, w lewym dolnym rogu. -->
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                Margin="48" Padding="28,22"
+                Background="{StaticResource Brush.SurfaceOverlay}"
+                CornerRadius="10">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding ExifFields}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ExifFieldViewModel}">
+                            <controls:ExifBadge IconResourceKey="{Binding IconResourceKey}" Text="{Binding Text}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

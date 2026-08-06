@@ -1,0 +1,15 @@
+<UserControl x:Class="Fotopodglad.Controls.MasonryGridControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             Background="{StaticResource Brush.Background}">
+    <ScrollViewer x:Name="Scroller"
+                  VerticalScrollBarVisibility="Hidden"
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalOnly"
+                  ScrollChanged="OnScrollChanged">
+        <Canvas x:Name="LayoutCanvas"/>
+    </ScrollViewer>
+</UserControl>

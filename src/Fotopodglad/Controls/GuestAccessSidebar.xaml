@@ -1,0 +1,26 @@
+<UserControl x:Class="Fotopodglad.Controls.GuestAccessSidebar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             IsHitTestVisible="False">
+    <!--
+        Pasywny panel bez żadnych kontrolek (nic tu nie da się kliknąć — IsHitTestVisible=False):
+        dwa kody QR, które gość skanuje aparatem telefonu. Nazwa sieci/hasło nigdy nie są pokazywane
+        tekstem, wyłącznie zakodowane w QR "dołącz do WiFi". Widoczny tylko, gdy hotspot faktycznie działa.
+    -->
+    <Border x:Name="RootBorder" Margin="0,0,32,32" Padding="18"
+            Background="{StaticResource Brush.SurfaceOverlay}" CornerRadius="10"
+            Visibility="Collapsed">
+        <StackPanel>
+            <TextBlock Text="Dołącz do sieci" Style="{StaticResource Style.ExifText}" FontSize="12"
+                       Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+            <Image x:Name="WifiQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+
+            <TextBlock Text="Pobierz najnowsze zdjęcie" Style="{StaticResource Style.ExifText}" FontSize="12"
+                       Foreground="{StaticResource Brush.TextSecondary}" Margin="0,16,0,6" HorizontalAlignment="Center"/>
+            <Image x:Name="PhotoQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+        </StackPanel>
+    </Border>
+</UserControl>

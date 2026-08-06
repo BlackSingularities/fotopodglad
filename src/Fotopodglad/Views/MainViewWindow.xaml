@@ -1,0 +1,11 @@
+<Window x:Class="Fotopodglad.Views.MainViewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Fotopodglad.Controls"
+        Title="Fotopodgląd — podgląd"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Background="{StaticResource Brush.Background}">
+    <controls:FullscreenPhotoView DataContext="{Binding Preview}"/>
+</Window>

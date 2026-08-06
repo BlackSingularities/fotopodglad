@@ -1,0 +1,204 @@
+using System.Globalization;
+using System.Windows.Media.Imaging;
+using Fotopodglad.Models;
+using MetadataExtractor;
+using MetadataExtractor.Formats.Exif;
+
+namespace Fotopodglad.Services;
+
+/// <summary>
+/// Odczytuje dane EXIF z pliku JPG. Główne źródło to BitmapMetadata (Windows Imaging Component),
+/// wbudowane w WPF i pozbawione zewnętrznych zależności. Gdy WIC nie odczyta któregoś pola
+/// (nietypowe makernote niektórych aparatów), brakujące wartości są dopełniane przez MetadataExtractor.
+/// </summary>
+public sealed class ExifService : IExifService
+{
+    private const string QueryFNumber = "/app1/ifd/exif/{ushort=33437}";
+    private const string QueryExposureTime = "/app1/ifd/exif/{ushort=33434}";
+    private const string QueryIso = "/app1/ifd/exif/{ushort=34855}";
+    private const string QueryFocalLength = "/app1/ifd/exif/{ushort=37386}";
+    private const string QueryDateTimeOriginal = "/app1/ifd/exif/{ushort=36867}";
+    private const string QueryExposureMode = "/app1/ifd/exif/{ushort=41986}";
+    private const string QueryWhiteBalance = "/app1/ifd/exif/{ushort=41987}";
+
+    public Task<ExifData> ExtractAsync(string filePath, CancellationToken cancellationToken = default)
+        => Task.Run(() => Extract(filePath), cancellationToken);
+
+    private static ExifData Extract(string filePath)
+    {
+        int width = 0, height = 0;
+        double? aperture = null, exposureTime = null, focalLength = null;
+        int? iso = null;
+        DateTime? dateTaken = null;
+        string? exposureMode = null;
+        string? whiteBalance = null;
+
+        try
+        {
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var frame = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            width = frame.PixelWidth;
+            height = frame.PixelHeight;
+
+            if (frame.Metadata is BitmapMetadata metadata)
+            {
+                aperture = TryGetDouble(metadata, QueryFNumber);
+                exposureTime = TryGetDouble(metadata, QueryExposureTime);
+                focalLength = TryGetDouble(metadata, QueryFocalLength);
+                iso = TryGetInt(metadata, QueryIso);
+                dateTaken = TryGetDateTime(metadata, QueryDateTimeOriginal);
+                exposureMode = TryGetExposureModeLabel(metadata);
+                whiteBalance = TryGetWhiteBalanceLabel(metadata);
+            }
+        }
+        catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException)
+        {
+            // Nieczytelny/uszkodzony plik obrazu — poniższy fallback i tak nic nie odczyta,
+            // ale nie chcemy wywrócić całej biblioteki zdjęć przez jeden zły plik.
+        }
+
+        if (aperture is null || exposureTime is null || focalLength is null || iso is null || dateTaken is null)
+        {
+            TryFillFromMetadataExtractor(
+                filePath,
+                ref aperture, ref exposureTime, ref focalLength, ref iso, ref dateTaken,
+                ref exposureMode, ref whiteBalance);
+        }
+
+        long fileSize = 0;
+        try
+        {
+            fileSize = new FileInfo(filePath).Length;
+        }
+        catch (IOException)
+        {
+        }
+
+        return new ExifData
+        {
+            DateTaken = dateTaken,
+            ApertureFNumber = aperture,
+            ExposureTimeSeconds = exposureTime,
+            Iso = iso,
+            FocalLengthMm = focalLength,
+            ExposureMode = exposureMode,
+            WhiteBalance = whiteBalance,
+            PixelWidth = width,
+            PixelHeight = height,
+            FileSizeBytes = fileSize
+        };
+    }
+
+    private static void TryFillFromMetadataExtractor(
+        string filePath,
+        ref double? aperture, ref double? exposureTime, ref double? focalLength,
+        ref int? iso, ref DateTime? dateTaken, ref string? exposureMode, ref string? whiteBalance)
+    {
+        try
+        {
+            var directories = ImageMetadataReader.ReadMetadata(filePath);
+            var subIfd = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
+            var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
+
+            if (subIfd is not null)
+            {
+                aperture ??= subIfd.TryGetDouble(ExifDirectoryBase.TagFNumber, out var f) ? f : null;
+                focalLength ??= subIfd.TryGetDouble(ExifDirectoryBase.TagFocalLength, out var fl) ? fl : null;
+                iso ??= subIfd.TryGetInt32(ExifDirectoryBase.TagIsoEquivalent, out var isoVal) ? isoVal : null;
+                dateTaken ??= subIfd.TryGetDateTime(ExifDirectoryBase.TagDateTimeOriginal, out var dt) ? dt : null;
+
+                if (exposureTime is null && subIfd.TryGetRational(ExifDirectoryBase.TagExposureTime, out var rational))
+                {
+                    exposureTime = rational.ToDouble();
+                }
+            }
+
+            dateTaken ??= ifd0?.TryGetDateTime(ExifDirectoryBase.TagDateTime, out var ifdDt) == true ? ifdDt : null;
+        }
+        catch (Exception ex) when (ex is IOException or ImageProcessingException)
+        {
+            // Brak metadanych albo nierozpoznany format — zostają wartości null, UI pokaże tylko dostępne pola.
+        }
+    }
+
+    private static double? TryGetDouble(BitmapMetadata metadata, string query)
+    {
+        if (!metadata.ContainsQuery(query))
+        {
+            return null;
+        }
+
+        try
+        {
+            var value = metadata.GetQuery(query);
+            return value switch
+            {
+                null => null,
+                double d => d,
+                float f => f,
+                decimal m => (double)m,
+                int i => i,
+                uint u => u,
+                ulong ul => ul,
+                string s when double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
+                _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
+            };
+        }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static int? TryGetInt(BitmapMetadata metadata, string query)
+    {
+        var value = TryGetDouble(metadata, query);
+        return value.HasValue ? (int)Math.Round(value.Value) : null;
+    }
+
+    private static DateTime? TryGetDateTime(BitmapMetadata metadata, string query)
+    {
+        if (!metadata.ContainsQuery(query))
+        {
+            return null;
+        }
+
+        try
+        {
+            var raw = metadata.GetQuery(query) as string;
+            if (raw is not null &&
+                DateTime.TryParseExact(raw, "yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                return parsed;
+            }
+        }
+        catch (InvalidCastException)
+        {
+        }
+
+        return null;
+    }
+
+    private static string? TryGetExposureModeLabel(BitmapMetadata metadata)
+    {
+        var code = TryGetInt(metadata, QueryExposureMode);
+        return code switch
+        {
+            0 => "Auto",
+            1 => "Manualny",
+            2 => "Auto bracket",
+            _ => null
+        };
+    }
+
+    private static string? TryGetWhiteBalanceLabel(BitmapMetadata metadata)
+    {
+        var code = TryGetInt(metadata, QueryWhiteBalance);
+        return code switch
+        {
+            0 => "Auto",
+            1 => "Manualny",
+            _ => null
+        };
+    }
+}

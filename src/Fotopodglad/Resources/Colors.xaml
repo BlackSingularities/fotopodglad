@@ -1,0 +1,18 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="Color.Background">#0A0A0C</Color>
+    <Color x:Key="Color.SurfaceOverlay">#B0101014</Color>
+    <Color x:Key="Color.TextPrimary">#F5F5F2</Color>
+    <Color x:Key="Color.TextSecondary">#A8A8AC</Color>
+    <Color x:Key="Color.Accent">#D9A441</Color>
+    <Color x:Key="Color.GridPlaceholder">#1C1C20</Color>
+
+    <SolidColorBrush x:Key="Brush.Background" Color="{StaticResource Color.Background}"/>
+    <SolidColorBrush x:Key="Brush.SurfaceOverlay" Color="{StaticResource Color.SurfaceOverlay}"/>
+    <SolidColorBrush x:Key="Brush.TextPrimary" Color="{StaticResource Color.TextPrimary}"/>
+    <SolidColorBrush x:Key="Brush.TextSecondary" Color="{StaticResource Color.TextSecondary}"/>
+    <SolidColorBrush x:Key="Brush.Accent" Color="{StaticResource Color.Accent}"/>
+    <SolidColorBrush x:Key="Brush.GridPlaceholder" Color="{StaticResource Color.GridPlaceholder}"/>
+
+</ResourceDictionary>
