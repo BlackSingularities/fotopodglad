@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Navigation;
 using Fotopodglad.Configuration;
 using Fotopodglad.Models;
+using Forms = System.Windows.Forms;
 
 namespace Fotopodglad.Views;
 
@@ -40,13 +42,12 @@ public partial class SettingsWindow : Window
 
         WifiSsidTextBox.Text = settings.WifiSsid ?? string.Empty;
         WifiPasswordBox.Password = settings.WifiPassphrase ?? string.Empty;
+        WatchedFolderTextBox.Text = settings.WatchedFolderPath ?? string.Empty;
         GuestAccessEnabledCheckBox.IsChecked = settings.GuestAccessEnabled;
         ShowPhotoParametersCheckBox.IsChecked = settings.ShowPhotoParameters;
         GridColumnsTextBox.Text = settings.GridColumnCount.ToString(CultureInfo.InvariantCulture);
         ManualHoldTextBox.Text = settings.ManualHoldSeconds.ToString(CultureInfo.InvariantCulture);
         QrSizeSlider.Value = Math.Clamp(settings.QrCodeSize, 96, 320);
-
-        AuthorTextBlock.Text = "Adam Rędzikowski";
     }
 
     private int ClampScreenIndex(int index) => Math.Clamp(index, 0, Math.Max(0, _screens.Count - 1));
@@ -55,6 +56,13 @@ public partial class SettingsWindow : Window
     {
         var wifiSsid = WifiSsidTextBox.Text.Trim();
         var wifiPassphrase = WifiPasswordBox.Password.Trim();
+        var watchedFolder = WatchedFolderTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(watchedFolder) || !Directory.Exists(watchedFolder))
+        {
+            MessageBox.Show(this, "Wybierz istniejący folder ze zdjęciami.", "Nieprawidłowy folder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         if (_screens.Count > 1 && MainViewScreenComboBox.SelectedIndex == GridScreenComboBox.SelectedIndex)
         {
@@ -88,6 +96,7 @@ public partial class SettingsWindow : Window
         }
 
         _settings.GuestAccessEnabled = GuestAccessEnabledCheckBox.IsChecked == true;
+        _settings.WatchedFolderPath = Path.GetFullPath(watchedFolder);
         _settings.ShowPhotoParameters = ShowPhotoParametersCheckBox.IsChecked == true;
         _settings.WifiSsid = string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid;
         _settings.WifiPassphrase = string.IsNullOrWhiteSpace(wifiPassphrase) ? null : wifiPassphrase;
@@ -109,6 +118,27 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OnBrowseFolderClick(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new Forms.FolderBrowserDialog
+        {
+            Description = "Wybierz folder, z którego Fotopodgląd ma wczytywać zdjęcia",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = true
+        };
+
+        if (Directory.Exists(WatchedFolderTextBox.Text))
+        {
+            dialog.SelectedPath = WatchedFolderTextBox.Text;
+        }
+
+        var owner = new NativeWindowOwner(new WindowInteropHelper(this).Handle);
+        if (dialog.ShowDialog(owner) == Forms.DialogResult.OK)
+        {
+            WatchedFolderTextBox.Text = dialog.SelectedPath;
+        }
+    }
+
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
@@ -126,5 +156,10 @@ public partial class SettingsWindow : Window
         }
 
         e.Handled = true;
+    }
+
+    private sealed class NativeWindowOwner(IntPtr handle) : Forms.IWin32Window
+    {
+        public IntPtr Handle { get; } = handle;
     }
 }
