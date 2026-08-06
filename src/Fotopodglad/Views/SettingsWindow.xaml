@@ -393,7 +393,7 @@
                                 <TextBlock Text="Hotspot i kody QR" Style="{StaticResource SectionTitle}"/>
                                 <TextBlock Text="Po włączeniu tej funkcji pierwszy kod QR łączy telefon z siecią WiFi utworzoną przez komputer. Drugi kod pobiera dokładnie zdjęcie aktualnie widoczne w podglądzie."
                                            Style="{StaticResource AboutBody}"/>
-                                <TextBlock Text="Panel QR ma własne miejsce obok siatki i nie zasłania zdjęć. Po 5 minutach bez pobierania hotspot jest zatrzymywany, a przy nowym zdjęciu uruchamia się ponownie."
+                                <TextBlock Text="Panel QR ma własne miejsce obok siatki i nie zasłania zdjęć. Po 5 minutach bez pobrania aplikacja rozłącza gości, ustawia nowe hasło i odświeża kod WiFi. Hotspot pozostaje dostępny aż do zamknięcia aplikacji."
                                            Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>

@@ -31,11 +31,32 @@ public sealed class WindowsHotspotService : IHotspotService
         _settings = settings;
     }
 
-    public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
+    public Task<bool> StartAsync(CancellationToken cancellationToken = default) =>
+        StartCoreAsync(forceFreshPassphrase: false, cancellationToken);
+
+    public async Task<bool> RestartWithFreshCredentialsAsync(CancellationToken cancellationToken = default)
     {
+        await StopAsync();
+        return await StartCoreAsync(forceFreshPassphrase: true, cancellationToken);
+    }
+
+    private async Task<bool> StartCoreAsync(bool forceFreshPassphrase, CancellationToken cancellationToken)
+    {
+        // Powtórne żądanie startu nie może wyłączać już działającej sieci. Chroni to przed
+        // krótkimi wyścigami zdarzeń UI i ponownym wywołaniem koordynatora podczas zmiany zdjęcia.
+        if (_tetheringManager?.TetheringOperationalState == TetheringOperationalState.On &&
+            LocalIpAddress is not null && Ssid is not null && Passphrase is not null)
+        {
+            return true;
+        }
+
         FailureReason = null;
-        Ssid = string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
-        Passphrase = string.IsNullOrWhiteSpace(_settings.WifiPassphrase) ? GeneratePassphrase() : _settings.WifiPassphrase;
+        Ssid = forceFreshPassphrase && !string.IsNullOrWhiteSpace(Ssid)
+            ? Ssid
+            : string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
+        Passphrase = forceFreshPassphrase
+            ? GeneratePassphraseDifferentFrom(Passphrase)
+            : string.IsNullOrWhiteSpace(_settings.WifiPassphrase) ? GeneratePassphrase() : _settings.WifiPassphrase;
 
         for (var attempt = 1; attempt <= StartAttemptCount; attempt++)
         {
@@ -156,6 +177,18 @@ public sealed class WindowsHotspotService : IHotspotService
         }
 
         return new string(chars);
+    }
+
+    private static string GeneratePassphraseDifferentFrom(string? previousPassphrase)
+    {
+        string passphrase;
+        do
+        {
+            passphrase = GeneratePassphrase();
+        }
+        while (string.Equals(passphrase, previousPassphrase, StringComparison.Ordinal));
+
+        return passphrase;
     }
 
     /// <summary>

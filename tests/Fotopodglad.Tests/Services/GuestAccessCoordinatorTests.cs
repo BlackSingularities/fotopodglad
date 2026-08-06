@@ -46,6 +46,77 @@ public sealed class GuestAccessCoordinatorTests
         Assert.Equal(GuestAccessStatus.IdleStopped, coordinator.Status);
     }
 
+    [Fact]
+    public async Task ChangingDisplayedPhoto_DoesNotRestartOrHideActiveHotspot()
+    {
+        var latest = MakePhoto(2);
+        var selected = MakePhoto(1);
+        var library = new FakePhotoLibrary(latest, selected);
+        var preview = new FullscreenPhotoViewModel(library, new AppSettings());
+        var mainView = new MainViewWindowViewModel(preview);
+        var hotspot = new FakeHotspotService(startSucceeds: true);
+        using var server = new GuestGalleryHttpServer(library, port: 0);
+        using var coordinator = new GuestAccessCoordinator(hotspot, server, library, mainView);
+
+        await coordinator.StartAsync();
+        preview.ShowManually(selected);
+        preview.ShowLatestAutomatically();
+
+        Assert.Equal(GuestAccessStatus.Active, coordinator.Status);
+        Assert.Equal(1, hotspot.StartCallCount);
+        Assert.Equal(0, hotspot.RestartCallCount);
+        Assert.Equal(0, hotspot.StopCallCount);
+        Assert.Equal(latest.SequenceId, coordinator.SharedPhotoSequenceId);
+    }
+
+    [Fact]
+    public async Task FiveMinutesWithoutDownload_RotatesCredentialsAndKeepsHotspotActive()
+    {
+        var library = new FakePhotoLibrary(MakePhoto(1));
+        var preview = new FullscreenPhotoViewModel(library, new AppSettings());
+        var mainView = new MainViewWindowViewModel(preview);
+        var hotspot = new FakeHotspotService(startSucceeds: true);
+        using var server = new GuestGalleryHttpServer(library, port: 0);
+        using var coordinator = new GuestAccessCoordinator(hotspot, server, library, mainView);
+
+        await coordinator.StartAsync();
+        var originalSsid = hotspot.Ssid;
+        var originalPassword = hotspot.Passphrase;
+
+        await coordinator.ResetIdleGuestSessionAsync(DateTime.UtcNow.AddMinutes(4));
+        Assert.Equal(0, hotspot.RestartCallCount);
+
+        await coordinator.ResetIdleGuestSessionAsync(DateTime.UtcNow.AddMinutes(6));
+
+        Assert.Equal(GuestAccessStatus.Active, coordinator.Status);
+        Assert.Equal(1, hotspot.RestartCallCount);
+        Assert.Equal(originalSsid, hotspot.Ssid);
+        Assert.NotEqual(originalPassword, hotspot.Passphrase);
+        Assert.NotNull(coordinator.WifiQrImage);
+        Assert.NotNull(coordinator.PhotoQrImage);
+    }
+
+    [Fact]
+    public async Task UnsupportedHotspot_IsNotRetriedForEveryPhotoChange()
+    {
+        var latest = MakePhoto(2);
+        var selected = MakePhoto(1);
+        var library = new FakePhotoLibrary(latest, selected);
+        var preview = new FullscreenPhotoViewModel(library, new AppSettings());
+        var mainView = new MainViewWindowViewModel(preview);
+        var hotspot = new FakeHotspotService(startSucceeds: false);
+        using var server = new GuestGalleryHttpServer(library, port: 0);
+        using var coordinator = new GuestAccessCoordinator(hotspot, server, library, mainView);
+
+        await coordinator.StartAsync();
+        preview.ShowManually(selected);
+        preview.ShowLatestAutomatically();
+
+        Assert.Equal(GuestAccessStatus.Unsupported, coordinator.Status);
+        Assert.Equal(1, hotspot.StartCallCount);
+        Assert.Equal(0, hotspot.RestartCallCount);
+    }
+
     private static PhotoItem MakePhoto(long id) => new()
     {
         FilePath = Path.Combine(Path.GetTempPath(), $"missing-photo-{id}.jpg"),
@@ -77,17 +148,32 @@ public sealed class GuestAccessCoordinatorTests
         public void Stop() { }
     }
 
-    private sealed class FakeHotspotService : IHotspotService
+    private sealed class FakeHotspotService(bool startSucceeds = false) : IHotspotService
     {
-        public bool StopCalled { get; private set; }
-        public string? Ssid => null;
-        public string? Passphrase => null;
-        public string? LocalIpAddress => null;
+        public int StartCallCount { get; private set; }
+        public int RestartCallCount { get; private set; }
+        public int StopCallCount { get; private set; }
+        public bool StopCalled => StopCallCount > 0;
+        public string? Ssid { get; private set; } = startSucceeds ? "FotoSesja-Test" : null;
+        public string? Passphrase { get; private set; } = startSucceeds ? "HasloTest1" : null;
+        public string? LocalIpAddress { get; private set; } = startSucceeds ? "127.0.0.1" : null;
         public string? FailureReason => null;
-        public Task<bool> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<bool> StartAsync(CancellationToken cancellationToken = default)
+        {
+            StartCallCount++;
+            return Task.FromResult(startSucceeds);
+        }
+
+        public Task<bool> RestartWithFreshCredentialsAsync(CancellationToken cancellationToken = default)
+        {
+            RestartCallCount++;
+            Passphrase = $"NoweHaslo{RestartCallCount}";
+            return Task.FromResult(startSucceeds);
+        }
+
         public Task StopAsync()
         {
-            StopCalled = true;
+            StopCallCount++;
             return Task.CompletedTask;
         }
     }

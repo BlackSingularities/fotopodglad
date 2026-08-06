@@ -11,6 +11,6 @@ public enum GuestAccessStatus
     /// <summary>Hotspot i serwer działają, goście mogą pobierać zdjęcia.</summary>
     Active,
 
-    /// <summary>Hotspot wyłączony po 5 minutach bezczynności — zostanie wznowiony przy nowym zdjęciu.</summary>
+    /// <summary>Hotspot został jawnie zatrzymany podczas zamykania lub restartu aplikacji.</summary>
     IdleStopped
 }

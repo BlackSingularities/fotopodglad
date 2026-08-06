@@ -16,5 +16,10 @@ public interface IHotspotService
     /// </summary>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Rozłącza bieżących gości i uruchamia hotspot ponownie z nowym hasłem sesji.
+    /// </summary>
+    Task<bool> RestartWithFreshCredentialsAsync(CancellationToken cancellationToken = default);
+
     Task StopAsync();
 }
