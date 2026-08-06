@@ -29,12 +29,20 @@ public partial class App : Application
     private GridWindow? _gridWindow;
     private int _lastScreenCount;
     private bool _forcedSingleScreenLayout;
+    private Mutex? _singleInstanceMutex;
 
     public static ServiceProvider Services { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        var isRestart = e.Args.Any(arg => string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase));
+        if (!AcquireSingleInstance(isRestart))
+        {
+            Shutdown();
+            return;
+        }
 
         // Podczas startu kolejno zamykają się modalne okna wyboru folderu i ustawień.
         // Nie mogą one zakończyć aplikacji jako "ostatnie okno", zanim pokażą się oba okna główne.
@@ -43,7 +51,6 @@ public partial class App : Application
         var settings = AppSettings.Load();
         _settings = settings;
         AppearanceService.Apply(settings);
-        var isRestart = e.Args.Any(arg => string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase));
         // Zapisany i nadal dostępny folder jest używany bez ponownego otwierania systemowego selektora.
         // Okno wyboru pokazujemy wyłącznie przy pierwszym uruchomieniu albo po utracie zapisanej ścieżki.
         var folderPath = settings.WatchedFolderPath is { } savedFolder && Directory.Exists(savedFolder)
@@ -127,6 +134,40 @@ public partial class App : Application
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
         ShutdownMode = ShutdownMode.OnLastWindowClose;
+    }
+
+    private bool AcquireSingleInstance(bool isRestart)
+    {
+        _singleInstanceMutex = new Mutex(false, @"Local\Fotopodglad.SingleInstance");
+        try
+        {
+            // Podczas kontrolowanego restartu nowy proces czeka, aż poprzedni zwolni hotspot i port.
+            if (_singleInstanceMutex.WaitOne(isRestart ? TimeSpan.FromSeconds(12) : TimeSpan.Zero))
+            {
+                return true;
+            }
+        }
+        catch (AbandonedMutexException)
+        {
+            return true;
+        }
+
+        var owner = CreateTransientDialogOwner();
+        try
+        {
+            owner.Show();
+            owner.Activate();
+            MessageBox.Show(owner, "Fotopodgląd jest już uruchomiony.", ApplicationVersion.ProductName,
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally
+        {
+            owner.Close();
+        }
+
+        _singleInstanceMutex.Dispose();
+        _singleInstanceMutex = null;
+        return false;
     }
 
     public async Task OpenSettingsAsync(Window owner)
@@ -515,6 +556,13 @@ public partial class App : Application
         }
         _services?.GetService<IPhotoLibraryService>()?.Stop();
         _services?.Dispose();
+        if (_singleInstanceMutex is not null)
+        {
+            try { _singleInstanceMutex.ReleaseMutex(); }
+            catch (ApplicationException) { }
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+        }
         base.OnExit(e);
     }
 

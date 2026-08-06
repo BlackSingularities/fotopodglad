@@ -21,12 +21,10 @@ namespace Fotopodglad.Services;
 public sealed class PhotoLibraryService : IPhotoLibraryService
 {
     private readonly IFolderWatcherService _watcher;
-    private readonly IExifService _exifService;
     private readonly Dispatcher _dispatcher;
     private readonly AppSettings _settings;
     private readonly HashSet<string> _loadedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentBag<PhotoItem> _backlogItems = [];
-    private readonly SemaphoreSlim _metadataSlots = new(Math.Clamp(Environment.ProcessorCount, 2, 8));
     private long _sequenceCounter;
 
     private int _pendingBacklogCount;
@@ -46,10 +44,9 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     public bool IsFolderAvailable => _watcher.IsAvailable;
     public string? FolderAvailabilityMessage => _watcher.AvailabilityMessage;
 
-    public PhotoLibraryService(IFolderWatcherService watcher, IExifService exifService, AppSettings settings)
+    public PhotoLibraryService(IFolderWatcherService watcher, AppSettings settings)
     {
         _watcher = watcher;
-        _exifService = exifService;
         _settings = settings;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _watcher.PhotoReady += OnPhotoReady;
@@ -85,35 +82,19 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
             Interlocked.Increment(ref _pendingBacklogCount);
         }
 
-        // Wywoływane z wątku tła watchera — parsowanie EXIF też robimy w tle, żeby nie blokować UI.
-        _ = HandlePhotoReadyAsync(filePath, isBacklog);
-    }
-
-    private async Task HandlePhotoReadyAsync(string filePath, bool isBacklog)
-    {
-        var metadataSlotAcquired = false;
         try
         {
-            await _metadataSlots.WaitAsync();
-            metadataSlotAcquired = true;
-            ExifData exif;
-            try
-            {
-                exif = await _exifService.ExtractAsync(filePath);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                return;
-            }
-
             var discoveredAtUtc = DateTime.UtcNow;
+            long fileSize = 0;
             try
             {
-                var lastWriteUtc = File.GetLastWriteTimeUtc(filePath);
+                var info = new FileInfo(filePath);
+                var lastWriteUtc = info.LastWriteTimeUtc;
                 if (lastWriteUtc != DateTime.MinValue)
                 {
                     discoveredAtUtc = lastWriteUtc;
                 }
+                fileSize = info.Length;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -123,7 +104,9 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
             {
                 FilePath = filePath,
                 FileName = Path.GetFileName(filePath),
-                Exif = exif,
+                // Metadane są ładowane leniwie dopiero dla zdjęcia wyświetlanego w podglądzie.
+                // Siatka stałych kafelków nie potrzebuje EXIF, więc nie blokujemy nią startu galerii.
+                Exif = ExifData.Empty(0, 0, fileSize),
                 // Dla zdjęć bez EXIF czas modyfikacji daje prawidłową kolejność także podczas skanu startowego.
                 DiscoveredAtUtc = discoveredAtUtc,
                 SequenceId = Interlocked.Increment(ref _sequenceCounter),
@@ -142,15 +125,11 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
             }
             else
             {
-                await _dispatcher.InvokeAsync(() => InsertLivePhoto(item));
+                _ = _dispatcher.InvokeAsync(() => InsertLivePhoto(item));
             }
         }
         finally
         {
-            if (metadataSlotAcquired)
-            {
-                _metadataSlots.Release();
-            }
             if (isBacklog && Interlocked.Decrement(ref _pendingBacklogCount) == 0)
             {
                 TryAnnounceLatestAfterBacklog();

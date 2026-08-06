@@ -12,6 +12,7 @@ namespace Fotopodglad.Services;
 /// </summary>
 public sealed class ThumbnailCache : IThumbnailCache
 {
+    private readonly SemaphoreSlim _decodeSlots = new(4, 4);
     private readonly Dictionary<string, LinkedListNode<CacheEntry>> _map = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<CacheEntry> _lruOrder = new();
     private readonly object _lock = new();
@@ -30,7 +31,7 @@ public sealed class ThumbnailCache : IThumbnailCache
         };
     }
 
-    public async Task<BitmapImage?> GetThumbnailAsync(string filePath, int decodePixelWidth, CancellationToken cancellationToken = default)
+    public async Task<BitmapSource?> GetThumbnailAsync(string filePath, int decodePixelWidth, CancellationToken cancellationToken = default)
     {
         var key = $"{filePath}|{decodePixelWidth}";
 
@@ -44,7 +45,18 @@ public sealed class ThumbnailCache : IThumbnailCache
             }
         }
 
-        var bitmap = await Task.Run(() => BitmapHelper.LoadFrozen(filePath, decodePixelWidth, cancellationToken), cancellationToken);
+        await _decodeSlots.WaitAsync(cancellationToken);
+        BitmapSource? bitmap;
+        try
+        {
+            bitmap = await Task.Run(
+                () => BitmapHelper.LoadEmbeddedThumbnailFrozen(filePath, cancellationToken) ??
+                      BitmapHelper.LoadFrozen(filePath, decodePixelWidth, cancellationToken), cancellationToken);
+        }
+        finally
+        {
+            _decodeSlots.Release();
+        }
         if (bitmap is null)
         {
             return null;
@@ -83,5 +95,5 @@ public sealed class ThumbnailCache : IThumbnailCache
         }
     }
 
-    private readonly record struct CacheEntry(string Key, BitmapImage Bitmap, long EstimatedBytes);
+    private readonly record struct CacheEntry(string Key, BitmapSource Bitmap, long EstimatedBytes);
 }

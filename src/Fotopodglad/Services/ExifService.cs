@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using Fotopodglad.Models;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.Jpeg;
 using ImageMagick;
 
 namespace Fotopodglad.Services;
@@ -34,37 +35,28 @@ public sealed class ExifService : IExifService
         DateTime? dateTaken = null;
         string? exposureProgram = null;
 
-        try
-        {
-            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var frame = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            width = frame.PixelWidth;
-            height = frame.PixelHeight;
+        // MetadataExtractor czyta tylko nagłówki/segmenty EXIF. Poprzednio BitmapCacheOption.OnLoad
+        // dekodował cały wielomegapikselowy JPEG tylko po to, by poznać kilka pól — przy wielu
+        // zdjęciach powodowało to sekundy pracy CPU i bardzo duży chwilowy przydział pamięci.
+        TryFillFromMetadataExtractor(
+            filePath,
+            ref aperture, ref exposureTime, ref focalLength, ref iso, ref dateTaken,
+            ref exposureProgram, ref orientation, ref width, ref height);
 
-            if (frame.Metadata is BitmapMetadata metadata)
+        if (width <= 0 || height <= 0)
+        {
+            try
             {
-                orientation = TryGetInt(metadata, QueryOrientation);
-                aperture = TryGetDouble(metadata, QueryFNumber);
-                exposureTime = TryGetDouble(metadata, QueryExposureTime);
-                focalLength = TryGetDouble(metadata, QueryFocalLength);
-                iso = TryGetInt(metadata, QueryIso);
-                dateTaken = TryGetDateTime(metadata, QueryDateTimeOriginal);
-                exposureProgram = GetExposureProgramLabel(TryGetInt(metadata, QueryExposureProgram));
+                using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var frame = BitmapFrame.Create(
+                    stream, BitmapCreateOptions.DelayCreation | BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
+                width = frame.PixelWidth;
+                height = frame.PixelHeight;
             }
-        }
-        catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException)
-        {
-            // Nieczytelny/uszkodzony plik obrazu — poniższy fallback i tak nic nie odczyta,
-            // ale nie chcemy wywrócić całej biblioteki zdjęć przez jeden zły plik.
-        }
-
-        if (aperture is null || exposureTime is null || focalLength is null || iso is null ||
-            dateTaken is null || exposureProgram is null || orientation is null)
-        {
-            TryFillFromMetadataExtractor(
-                filePath,
-                ref aperture, ref exposureTime, ref focalLength, ref iso, ref dateTaken,
-                ref exposureProgram, ref orientation);
+            catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException)
+            {
+                // RAW lub uszkodzony obraz przejdzie do lekkiego odczytu MagickImageInfo poniżej.
+            }
         }
 
         (width, height) = ApplyOrientationToDimensions(width, height, orientation);
@@ -108,13 +100,15 @@ public sealed class ExifService : IExifService
     private static void TryFillFromMetadataExtractor(
         string filePath,
         ref double? aperture, ref double? exposureTime, ref double? focalLength,
-        ref int? iso, ref DateTime? dateTaken, ref string? exposureProgram, ref int? orientation)
+        ref int? iso, ref DateTime? dateTaken, ref string? exposureProgram, ref int? orientation,
+        ref int width, ref int height)
     {
         try
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
             var subIfd = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
             var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
+            var jpeg = directories.OfType<JpegDirectory>().FirstOrDefault();
 
             if (subIfd is not null)
             {
@@ -130,12 +124,17 @@ public sealed class ExifService : IExifService
                 {
                     exposureTime = rational.ToDouble();
                 }
+
+                width = subIfd.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var exifWidth) ? exifWidth : width;
+                height = subIfd.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var exifHeight) ? exifHeight : height;
             }
 
             dateTaken ??= ifd0?.TryGetDateTime(ExifDirectoryBase.TagDateTime, out var ifdDt) == true ? ifdDt : null;
             orientation ??= ifd0?.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientationValue) == true
                 ? orientationValue
                 : null;
+            width = jpeg?.TryGetInt32(JpegDirectory.TagImageWidth, out var jpegWidth) == true ? jpegWidth : width;
+            height = jpeg?.TryGetInt32(JpegDirectory.TagImageHeight, out var jpegHeight) == true ? jpegHeight : height;
         }
         catch (Exception ex) when (ex is IOException or ImageProcessingException)
         {

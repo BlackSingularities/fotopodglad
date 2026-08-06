@@ -6,7 +6,11 @@ public sealed partial class PhotoItem : ObservableObject
 {
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
-    public required ExifData Exif { get; init; }
+    [ObservableProperty]
+    private ExifData exif = new();
+
+    [ObservableProperty]
+    private bool metadataLoaded;
     public required DateTime DiscoveredAtUtc { get; init; }
 
     /// <summary>Kolejny licznik globalny, używany jako stabilny klucz sortowania (na wypadek identycznych DateTaken).</summary>
