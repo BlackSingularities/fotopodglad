@@ -22,6 +22,14 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void Defaults_ShowGuestInstructions()
+    {
+        var settings = new AppSettings();
+
+        Assert.True(settings.ShowGuestInstructions);
+    }
+
+    [Fact]
     public void ManualPreviewMaximum_IsFifteenMinutes()
     {
         Assert.Equal(900, AppSettings.MaxManualHoldSeconds);

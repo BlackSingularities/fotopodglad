@@ -25,6 +25,13 @@ public partial class GridWindow : Window
         grid.PhotoClicked += photo => viewModel.OnPhotoClicked(photo);
         GridHost.Children.Add(grid);
 
+        GuestInstructionBorder.DataContext = guestAccess;
+        if (!settings.ShowGuestInstructions)
+        {
+            // Lokalna wartość ma pierwszeństwo przed triggerem Status=Active i trwale ukrywa pasek.
+            GuestInstructionBorder.Visibility = Visibility.Collapsed;
+        }
+
         var guestSidebar = new GuestAccessSidebar(settings, compactLayout: screenService.GetScreens().Count == 1)
         {
             DataContext = guestAccess
