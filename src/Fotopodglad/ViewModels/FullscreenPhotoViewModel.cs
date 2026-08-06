@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Fotopodglad.Configuration;
 using Fotopodglad.Helpers;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
@@ -12,12 +13,11 @@ namespace Fotopodglad.ViewModels;
 /// <summary>
 /// VM reużywalnej kontrolki pełnoekranowego podglądu (Controls/FullscreenPhotoView), używanej zarówno
 /// w Oknie A (zawsze w trybie Auto) jak i w Oknie B jako overlay wywoływany kliknięciem w siatkę
-/// (tryb Manual, minimum 10s, potem automatyczny powrót do najnowszego zdjęcia — pozostając pełnoekranowo).
+/// (tryb Manual, minimum settings.ManualHoldSeconds, potem automatyczny powrót do najnowszego zdjęcia —
+/// pozostając pełnoekranowo).
 /// </summary>
 public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 {
-    private static readonly TimeSpan ManualHoldDuration = TimeSpan.FromSeconds(10);
-
     private readonly IPhotoLibraryService _library;
     private readonly DispatcherTimer _manualHoldTimer;
     private int _loadToken;
@@ -33,10 +33,11 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 
     public ObservableCollection<ExifFieldViewModel> ExifFields { get; } = new();
 
-    public FullscreenPhotoViewModel(IPhotoLibraryService library)
+    public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings)
     {
         _library = library;
-        _manualHoldTimer = new DispatcherTimer { Interval = ManualHoldDuration };
+        var manualHoldDuration = TimeSpan.FromSeconds(Math.Max(1, settings.ManualHoldSeconds));
+        _manualHoldTimer = new DispatcherTimer { Interval = manualHoldDuration };
         _manualHoldTimer.Tick += (_, _) =>
         {
             _manualHoldTimer.Stop();

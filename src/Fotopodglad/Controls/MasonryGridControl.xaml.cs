@@ -20,8 +20,9 @@ namespace Fotopodglad.Controls;
 /// </summary>
 public partial class MasonryGridControl : UserControl
 {
-    private const int ColumnCount = 6;
     private const double ViewportBufferRatio = 1.0; // dodatkowy bufor nad/pod viewportem, w wysokościach ekranu
+
+    private int _columnCount = 6;
 
     private readonly Dictionary<PhotoItem, Image> _realizedImages = new();
     private readonly Stack<Image> _imagePool = new();
@@ -38,9 +39,10 @@ public partial class MasonryGridControl : UserControl
         Loaded += (_, _) => RecomputeLayout();
     }
 
-    public void Initialize(IThumbnailCache thumbnailCache, ObservableCollection<PhotoItem> itemsSource)
+    public void Initialize(IThumbnailCache thumbnailCache, ObservableCollection<PhotoItem> itemsSource, int columnCount = 6)
     {
         _thumbnailCache = thumbnailCache;
+        _columnCount = Math.Max(1, columnCount);
 
         if (_itemsSource is not null)
         {
@@ -64,8 +66,8 @@ public partial class MasonryGridControl : UserControl
         var wasAtTop = Scroller.VerticalOffset <= 5;
         var previousOffset = Scroller.VerticalOffset;
 
-        var columnWidth = ActualWidth / ColumnCount;
-        var (slots, totalHeight) = MasonryLayoutCalculator.ComputeLayout(_itemsSource, ColumnCount, columnWidth);
+        var columnWidth = ActualWidth / _columnCount;
+        var (slots, totalHeight) = MasonryLayoutCalculator.ComputeLayout(_itemsSource, _columnCount, columnWidth);
         _layout = slots;
 
         LayoutCanvas.Width = ActualWidth;

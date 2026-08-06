@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using Fotopodglad.Configuration;
 using Windows.Networking.Connectivity;
 using Windows.Networking.NetworkOperators;
 
@@ -10,16 +11,23 @@ namespace Fotopodglad.Services.GuestGallery;
 /// Działa równolegle z istniejącym połączeniem WiFi komputera (np. z siecią karty pamięci aparatu)
 /// TYLKO jeśli karta sieciowa/sterownik wspiera jednoczesny tryb access-point + klient (Wi-Fi Direct
 /// Virtual Adapter) — to zależy od sprzętu i wykrywamy to dopiero przy próbie startu.
-/// SSID i hasło są generowane losowo przy każdym starcie i nigdy nie są pokazywane w UI —
+/// SSID i hasło: albo te ustawione ręcznie przez użytkownika w oknie ustawień, albo (domyślnie)
+/// generowane losowo przy każdym starcie — w obu przypadkach nigdy nie są pokazywane w UI,
 /// dostępne wyłącznie zakodowane w kodzie QR.
 /// </summary>
 public sealed class WindowsHotspotService : IHotspotService
 {
+    private readonly AppSettings _settings;
     private NetworkOperatorTetheringManager? _tetheringManager;
 
     public string? Ssid { get; private set; }
     public string? Passphrase { get; private set; }
     public string? LocalIpAddress { get; private set; }
+
+    public WindowsHotspotService(AppSettings settings)
+    {
+        _settings = settings;
+    }
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
     {
@@ -33,8 +41,8 @@ public sealed class WindowsHotspotService : IHotspotService
 
             _tetheringManager = NetworkOperatorTetheringManager.CreateFromConnectionProfile(profile);
 
-            Ssid = GenerateSsid();
-            Passphrase = GeneratePassphrase();
+            Ssid = string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
+            Passphrase = string.IsNullOrWhiteSpace(_settings.WifiPassphrase) ? GeneratePassphrase() : _settings.WifiPassphrase;
 
             var config = new NetworkOperatorTetheringAccessPointConfiguration
             {

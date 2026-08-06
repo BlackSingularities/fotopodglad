@@ -9,6 +9,11 @@ namespace Fotopodglad.Services;
 /// z ExifService (parsowanie metadanych) i eksponuje jedną współdzieloną kolekcję zdjęć,
 /// posortowaną malejąco po czasie wykonania. Wstawienia do kolekcji zawsze wykonywane na wątku UI,
 /// bo ObservableCollection nie jest bezpieczna wielowątkowo.
+///
+/// Zdjęcia "zaległe" (obecne w folderze już przy starcie) są wstawiane do Photos od razu — siatka
+/// w Oknie B ma się nimi wypełnić — ale NIE wywołują NewestChanged pojedynczo, bo to powodowało
+/// gwałtowne "przewijanie" podglądu w Oknie A przez każde historyczne zdjęcie z osobna. Zamiast tego
+/// NewestChanged dla zaległości jest wywoływane raz, dopiero gdy cała zaległość zostanie załadowana.
 /// </summary>
 public sealed class PhotoLibraryService : IPhotoLibraryService
 {
@@ -16,6 +21,10 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     private readonly IExifService _exifService;
     private readonly Dispatcher _dispatcher;
     private long _sequenceCounter;
+
+    private int _pendingBacklogCount;
+    private int _initialScanCompleted;
+    private int _finalLatestAnnounced;
 
     public ObservableCollection<PhotoItem> Photos { get; } = new();
 
@@ -29,48 +38,97 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         _exifService = exifService;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _watcher.PhotoReady += OnPhotoReady;
+        _watcher.InitialScanCompleted += OnInitialScanCompleted;
     }
 
     public void Start(string folderPath)
     {
         Photos.Clear();
         _sequenceCounter = 0;
+        _pendingBacklogCount = 0;
+        _initialScanCompleted = 0;
+        _finalLatestAnnounced = 0;
         _watcher.Start(folderPath);
     }
 
     public void Stop() => _watcher.Stop();
 
-    private void OnPhotoReady(string filePath)
+    private void OnPhotoReady(string filePath, bool isBacklog)
     {
+        if (isBacklog)
+        {
+            Interlocked.Increment(ref _pendingBacklogCount);
+        }
+
         // Wywoływane z wątku tła watchera — parsowanie EXIF też robimy w tle, żeby nie blokować UI.
-        _ = HandlePhotoReadyAsync(filePath);
+        _ = HandlePhotoReadyAsync(filePath, isBacklog);
     }
 
-    private async Task HandlePhotoReadyAsync(string filePath)
+    private async Task HandlePhotoReadyAsync(string filePath, bool isBacklog)
     {
-        ExifData exif;
         try
         {
-            exif = await _exifService.ExtractAsync(filePath);
+            ExifData exif;
+            try
+            {
+                exif = await _exifService.ExtractAsync(filePath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return;
+            }
+
+            var item = new PhotoItem
+            {
+                FilePath = filePath,
+                FileName = Path.GetFileName(filePath),
+                Exif = exif,
+                DiscoveredAtUtc = DateTime.UtcNow,
+                SequenceId = Interlocked.Increment(ref _sequenceCounter)
+            };
+
+            await _dispatcher.InvokeAsync(() => InsertPhoto(item, isBacklog));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        finally
+        {
+            if (isBacklog && Interlocked.Decrement(ref _pendingBacklogCount) == 0)
+            {
+                TryAnnounceLatestAfterBacklog();
+            }
+        }
+    }
+
+    private void OnInitialScanCompleted()
+    {
+        Interlocked.Exchange(ref _initialScanCompleted, 1);
+        if (Volatile.Read(ref _pendingBacklogCount) == 0)
+        {
+            TryAnnounceLatestAfterBacklog();
+        }
+    }
+
+    private void TryAnnounceLatestAfterBacklog()
+    {
+        if (Volatile.Read(ref _initialScanCompleted) == 0)
         {
             return;
         }
 
-        var item = new PhotoItem
+        if (Interlocked.CompareExchange(ref _finalLatestAnnounced, 1, 0) != 0)
         {
-            FilePath = filePath,
-            FileName = Path.GetFileName(filePath),
-            Exif = exif,
-            DiscoveredAtUtc = DateTime.UtcNow,
-            SequenceId = Interlocked.Increment(ref _sequenceCounter)
-        };
+            return; // już ogłoszone (albo się nią zajmuje inny wątek w tej samej chwili)
+        }
 
-        await _dispatcher.InvokeAsync(() => InsertPhoto(item));
+        _ = _dispatcher.InvokeAsync(() =>
+        {
+            if (Latest is { } latest)
+            {
+                NewestChanged?.Invoke(latest);
+            }
+        });
     }
 
-    private void InsertPhoto(PhotoItem item)
+    private void InsertPhoto(PhotoItem item, bool isBacklog)
     {
         // Sortowanie: najpierw po dacie wykonania (EXIF), a przy braku/remisie po kolejności wykrycia (SequenceId).
         var insertIndex = 0;
@@ -84,7 +142,8 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
 
         Photos.Insert(insertIndex, item);
 
-        if (insertIndex == 0)
+        // Zaległości startowe nigdy nie wywołują NewestChanged pojedynczo — patrz TryAnnounceLatestAfterBacklog.
+        if (insertIndex == 0 && !isBacklog)
         {
             NewestChanged?.Invoke(item);
         }

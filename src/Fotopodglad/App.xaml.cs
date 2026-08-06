@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Interop;
 using Fotopodglad.Configuration;
+using Fotopodglad.Helpers;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
 using Fotopodglad.Services.GuestGallery;
@@ -8,6 +10,7 @@ using Fotopodglad.ViewModels;
 using Fotopodglad.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Fotopodglad;
 
@@ -30,10 +33,26 @@ public partial class App : Application
         }
 
         settings.WatchedFolderPath = folderPath;
+
+        var wantsToChangeSettings = MessageBox.Show(
+            "Czy chcesz zmienić ustawienia (WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
+            "Fotopodgląd — ustawienia",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No) == MessageBoxResult.Yes;
+
+        if (wantsToChangeSettings)
+        {
+            var settingsWindow = new SettingsWindow(settings);
+            settingsWindow.ShowDialog();
+            // Niezależnie od wyniku (Zapisz/Anuluj) startujemy dalej — SettingsWindow modyfikuje `settings`
+            // w miejscu tylko gdy użytkownik kliknie "Zapisz i uruchom".
+        }
+
         settings.Save();
 
         var serviceCollection = new ServiceCollection();
-        ConfigureServices(serviceCollection);
+        ConfigureServices(serviceCollection, settings);
         _services = serviceCollection.BuildServiceProvider();
         Services = _services;
 
@@ -83,8 +102,10 @@ public partial class App : Application
         return dialog.ShowDialog() == DialogResult.OK ? dialog.SelectedPath : null;
     }
 
-    private static void ConfigureServices(ServiceCollection services)
+    private static void ConfigureServices(ServiceCollection services, AppSettings settings)
     {
+        services.AddSingleton(settings);
+
         services.AddSingleton<IScreenService, ScreenService>();
         services.AddSingleton<IExifService, ExifService>();
         services.AddSingleton<IFolderWatcherService, FolderWatcherService>();
@@ -109,13 +130,24 @@ public partial class App : Application
         services.AddTransient<GridWindow>();
     }
 
+    /// <summary>
+    /// Ustawia geometrię okna przez Win32 SetWindowPos w pikselach fizycznych zamiast WPF Left/Top/Width/Height
+    /// (jednostki DIP) — na monitorach ze skalowaniem innym niż 100% ręczne przeliczanie DIP prowadziło
+    /// do złego rozmiaru/pozycji okna, przez co jedno okno potrafiło nachodzić na drugie zamiast każde
+    /// zajmować własny ekran. SetWindowPos wywoływany w SourceInitialized, więc geometria jest ustawiona
+    /// zanim okno faktycznie się pokaże — bez migotania.
+    /// </summary>
     private static void ConfigureFullscreenWindow(Window window, ScreenInfo screen)
     {
-        window.WindowState = WindowState.Normal;
-        window.Left = screen.Left;
-        window.Top = screen.Top;
-        window.Width = screen.Width;
-        window.Height = screen.Height;
+        window.WindowStyle = WindowStyle.None;
+        window.ResizeMode = ResizeMode.NoResize;
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
         window.Topmost = true;
+
+        window.SourceInitialized += (_, _) =>
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            Win32Interop.SetWindowBounds(hwnd, screen.Left, screen.Top, screen.Width, screen.Height);
+        };
     }
 }

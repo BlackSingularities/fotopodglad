@@ -7,6 +7,17 @@ public sealed class AppSettings
 {
     public string? WatchedFolderPath { get; set; }
 
+    /// <summary>Puste/null = losowe SSID generowane przy każdym starcie hotspotu.</summary>
+    public string? WifiSsid { get; set; }
+
+    /// <summary>Puste/null = losowe hasło generowane przy każdym starcie hotspotu.</summary>
+    public string? WifiPassphrase { get; set; }
+
+    public int GridColumnCount { get; set; } = 6;
+
+    /// <summary>Ile sekund minimum trzymać ręcznie wybrane zdjęcie (Okno B), zanim wróci "zawsze najnowsze".</summary>
+    public double ManualHoldSeconds { get; set; } = 10;
+
     private static string SettingsFilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Fotopodglad", "settings.json");
 

@@ -18,7 +18,7 @@ public sealed class FolderWatcherServiceTests : IDisposable
     public async Task PhotoReady_NotRaised_WhileFileIsStillBeingWritten()
     {
         var readySignal = new TaskCompletionSource<string>();
-        _watcher.PhotoReady += path => readySignal.TrySetResult(path);
+        _watcher.PhotoReady += (path, _) => readySignal.TrySetResult(path);
         _watcher.Start(_tempFolder);
 
         var filePath = Path.Combine(_tempFolder, "incoming.jpg");
@@ -44,17 +44,31 @@ public sealed class FolderWatcherServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PhotoReady_Raised_ForFileAlreadyPresentAtStartupViaPolling()
+    public async Task PhotoReady_Raised_ForFileAlreadyPresentAtStartup_MarkedAsBacklog()
     {
         var filePath = Path.Combine(_tempFolder, "existing.jpg");
         await File.WriteAllBytesAsync(filePath, new byte[2048]);
 
-        var readySignal = new TaskCompletionSource<string>();
-        _watcher.PhotoReady += path => readySignal.TrySetResult(path);
+        var readySignal = new TaskCompletionSource<bool>();
+        _watcher.PhotoReady += (path, isBacklog) => readySignal.TrySetResult(isBacklog);
         _watcher.Start(_tempFolder);
 
         var completed = await Task.WhenAny(readySignal.Task, Task.Delay(TimeSpan.FromSeconds(10)));
         Assert.Same(readySignal.Task, completed);
+        Assert.True(await readySignal.Task);
+    }
+
+    [Fact]
+    public async Task InitialScanCompleted_Raised_AfterBacklogProcessed()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempFolder, "existing.jpg"), new byte[2048]);
+
+        var scanCompleted = new TaskCompletionSource<bool>();
+        _watcher.InitialScanCompleted += () => scanCompleted.TrySetResult(true);
+        _watcher.Start(_tempFolder);
+
+        var completed = await Task.WhenAny(scanCompleted.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(scanCompleted.Task, completed);
     }
 
     public void Dispose()

@@ -8,6 +8,11 @@ namespace Fotopodglad.Services;
 /// FileSystemWatcher bywa zawodny przy dużym ruchu I/O (gubi zdarzenia przy przepełnieniu wewnętrznego
 /// bufora), dlatego dokładamy fallback w postaci pollingu co 2 sekundy jako drugą linię wykrywania.
 /// Każdy wykryty plik przechodzi przez FileStabilityChecker, zanim zgłosimy go jako gotowy do odczytu.
+///
+/// Pliki obecne w folderze już przy starcie ("zaległości" z poprzedniej sesji) są rozróżniane od plików
+/// wykrytych na żywo (isBacklog=true/false) — dzięki temu PhotoLibraryService może dociążyć siatkę
+/// historią bez wywoływania NewestChanged dla każdego z osobna (co powodowało gwałtowne "przewijanie"
+/// podglądu w Oknie A podczas ładowania folderu z wieloma zdjęciami).
 /// </summary>
 public sealed class FolderWatcherService : IFolderWatcherService
 {
@@ -19,7 +24,8 @@ public sealed class FolderWatcherService : IFolderWatcherService
     private readonly HashSet<string> _knownFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _knownFilesLock = new();
 
-    public event Action<string>? PhotoReady;
+    public event Action<string, bool>? PhotoReady;
+    public event Action? InitialScanCompleted;
 
     public void Start(string folderPath)
     {
@@ -51,14 +57,7 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
         _ = ProcessQueueAsync(_pendingFiles.Reader, _cts.Token);
         _ = PollFallbackLoopAsync(folderPath, _cts.Token);
-
-        // Pliki już obecne w folderze przy starcie (np. ponowne uruchomienie aplikacji w trakcie tej
-        // samej sesji zdjęciowej) też przechodzą przez normalny tor stabilizacji i trafiają do biblioteki,
-        // żeby siatka zdjęć nie była pusta po restarcie.
-        foreach (var existing in EnumerateSupportedFiles(folderPath))
-        {
-            EnqueueIfSupported(existing);
-        }
+        _ = LoadBacklogAsync(folderPath, _cts.Token);
     }
 
     public void Stop()
@@ -111,6 +110,45 @@ public sealed class FolderWatcherService : IFolderWatcherService
         _pendingFiles?.Writer.TryWrite(fullPath);
     }
 
+    /// <summary>
+    /// Pliki obecne w folderze w chwili startu są stabilizowane i zgłaszane osobnym torem (isBacklog=true),
+    /// równolegle (wszystkie na raz — to tylko sprawdzenie blokady pliku, tanie), a na koniec zgłaszamy
+    /// InitialScanCompleted, żeby biblioteka mogła pokazać faktycznie najnowsze zdjęcie dopiero raz,
+    /// po załadowaniu całej historii, zamiast migać przez każde zdjęcie po kolei.
+    /// </summary>
+    private async Task LoadBacklogAsync(string folderPath, CancellationToken cancellationToken)
+    {
+        var existing = EnumerateSupportedFiles(folderPath).ToList();
+
+        lock (_knownFilesLock)
+        {
+            foreach (var path in existing)
+            {
+                _knownFiles.Add(path);
+            }
+        }
+
+        try
+        {
+            var stabilityResults = await Task.WhenAll(
+                existing.Select(path => FileStabilityChecker.WaitUntilStableAsync(path, TimeSpan.FromSeconds(15), cancellationToken)));
+
+            for (var i = 0; i < existing.Count; i++)
+            {
+                if (stabilityResults[i])
+                {
+                    PhotoReady?.Invoke(existing[i], true);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        InitialScanCompleted?.Invoke();
+    }
+
     private async Task PollFallbackLoopAsync(string folderPath, CancellationToken cancellationToken)
     {
         try
@@ -154,7 +192,8 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
                 if (isStable)
                 {
-                    PhotoReady?.Invoke(path);
+                    // Pliki z tego toru są zawsze "na żywo" — zaległości startowe idą przez LoadBacklogAsync.
+                    PhotoReady?.Invoke(path, false);
                 }
             }
         }
