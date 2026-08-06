@@ -5,7 +5,13 @@ namespace Fotopodglad.Configuration;
 
 public sealed class AppSettings
 {
+    public const double MinManualHoldSeconds = 3;
+    public const double MaxManualHoldSeconds = 900;
+
     public string? WatchedFolderPath { get; set; }
+
+    /// <summary>Domyślnie true: hotspot i kody QR uruchamiają się automatycznie wraz z aplikacją.</summary>
+    public bool GuestAccessEnabled { get; set; } = true;
 
     /// <summary>Puste/null = losowe SSID generowane przy każdym starcie hotspotu.</summary>
     public string? WifiSsid { get; set; }
