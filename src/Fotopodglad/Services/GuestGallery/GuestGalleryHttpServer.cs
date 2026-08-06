@@ -13,17 +13,25 @@ namespace Fotopodglad.Services.GuestGallery;
 public sealed class GuestGalleryHttpServer : IDisposable
 {
     private readonly IPhotoLibraryService _library;
+    private readonly int _configuredPort;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
     public event Action? PhotoDownloaded;
 
-    public GuestGalleryHttpServer(IPhotoLibraryService library)
+    public GuestGalleryHttpServer(IPhotoLibraryService library, int port = 8080)
     {
+        if (port is < 0 or > 65535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(port));
+        }
+
         _library = library;
+        _configuredPort = port;
+        Port = port;
     }
 
-    public int Port { get; } = 8080;
+    public int Port { get; private set; }
 
     public void Start(string localIpAddress)
     {
@@ -35,8 +43,9 @@ public sealed class GuestGalleryHttpServer : IDisposable
         }
 
         _cts = new CancellationTokenSource();
-        _listener = new TcpListener(address, Port);
+        _listener = new TcpListener(address, _configuredPort);
         _listener.Start();
+        Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
 
         _ = AcceptLoopAsync(_listener, _cts.Token);
     }

@@ -35,7 +35,9 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
             SequenceId = 42
         });
 
-        using var server = new GuestGalleryHttpServer(library);
+        using var server = new GuestGalleryHttpServer(library, port: 0);
+        var downloadReported = false;
+        server.PhotoDownloaded += () => downloadReported = true;
         server.Start(IPAddress.Loopback.ToString());
 
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
@@ -45,6 +47,7 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("zdjecie.jpg", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         Assert.Equal(expected, await response.Content.ReadAsByteArrayAsync());
+        Assert.True(downloadReported);
     }
 
     public void Dispose()
