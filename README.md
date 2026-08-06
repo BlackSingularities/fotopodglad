@@ -7,13 +7,13 @@ Aplikacja desktopowa (WPF, .NET 8) dla fotografa pracującego na dwóch monitora
 - **Okno A (Ekran 1)** — pełnoekranowy, pozbawiony jakichkolwiek kontrolek podgląd zawsze najnowszego zdjęcia: nazwa pliku, godzina, parametry ekspozycji (przysłona, czas, ISO, ogniskowa i pełna nazwa programu ekspozycji), wymiary i rozmiar pliku — każde z osobną ikoną wektorową (bez emoji/fontów ikon). Możliwość przybliżania kółkiem myszy.
 - **Okno B (Ekran 2)** — pełnoekranowa, przewijana siatka równych kafelków 3:2 ze wszystkimi zdjęciami z sesji, najnowsze zawsze na górze. Miniatury są równo przycinane, a kliknięcie pokazuje wybrane zdjęcie w Oknie A przez ustawiony czas; siatka pozostaje cały czas widoczna.
 - **1 lub 2 monitory** — przy dwóch monitorach podgląd i siatka zajmują osobne ekrany. Przy jednym podgląd zajmuje górne 60%, a przewijana siatka dolne 40% szerokości ekranu. Panel QR pozostaje w prawym dolnym rogu.
-- **Ustawienia** — dostępne przy starcie i w dowolnym momencie skrótem `Ctrl+P`. Pozwalają m.in. zmienić obserwowany folder zdjęć, pokazać lub ukryć panel parametrów, włączyć/wyłączyć automatyczny hotspot, ustawić wielkość QR i czas ręcznego podglądu od 3 do 900 sekund. Po zapisaniu aplikacja uruchamia się ponownie.
+- **Ustawienia** — dostępne przy starcie i w dowolnym momencie skrótem `Ctrl+P`. Pozwalają m.in. zmienić obserwowany folder zdjęć, pokazać lub ukryć panel parametrów i subtelną instrukcję dla gości, włączyć/wyłączyć automatyczny hotspot, ustawić wielkość QR i czas ręcznego podglądu od 3 do 900 sekund. Po zapisaniu aplikacja uruchamia się ponownie.
 - **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot WiFi; w osobnej, automatycznie zwijanej kolumnie Okna B widoczne są dwa kody QR (dołączenie do sieci + pobranie zdjęcia aktualnie wyświetlanego w Oknie A), dzięki czemu panel nie zasłania miniatur. Start automatycznie ponawia się przy przejściowym błędzie Windows, a poprzedni stan hotspotu jest porządkowany przed konfiguracją. Sieć wyłącza się automatycznie po 5 minutach bezczynności i wznawia przy nowym zdjęciu.
 - **Aplikacja nigdzie nie zapisuje kopii zdjęć.** Miniatury w siatce są cache'owane wyłącznie w pamięci RAM, serwer HTTP dla gości czyta i wysyła bajty bezpośrednio z oryginalnego pliku. Jedyny zapisywany plik to `settings.json` (ścieżka folderu i ustawienia, w `%AppData%\Fotopodglad`).
 
 ## Pobieranie i uruchomienie
 
-Gotowy, samodzielny plik `.exe` (nie wymaga instalowania .NET) dostępny w [Releases](../../releases) — pobierz `Fotopodglad-win-x64.zip`, rozpakuj i uruchom `Fotopodglad.exe`.
+Gotowy, samodzielny plik `.exe` (nie wymaga instalowania .NET) jest dostępny w [Releases](../../releases). Pobierz i uruchom `Fotopodglad.exe` — bez instalatora, rozpakowywania i dodatkowych plików.
 
 > Plik pochodzi z internetu, więc Windows może go domyślnie zablokować (SmartScreen). Jeśli tak się stanie: kliknij prawym na plik → *Właściwości* → zaznacz *Odblokuj* → *OK*.
 

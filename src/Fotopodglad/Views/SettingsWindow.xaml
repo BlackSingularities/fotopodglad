@@ -217,11 +217,8 @@
                 <TextBlock Text="Skonfiguruj ekrany, galerię i udostępnianie zdjęć"
                            Foreground="{StaticResource Brush.TextSecondary}" FontSize="12" Margin="0,4,0,0"/>
             </StackPanel>
-            <Border Grid.Column="1" Width="42" Height="42" CornerRadius="21"
-                    Background="#2D2517" BorderBrush="{StaticResource Brush.Accent}" BorderThickness="1">
-                <TextBlock Text="F" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            <Image Grid.Column="1" Width="48" Height="48"
+                   Source="/Assets/FotopodgladLogo.png" RenderOptions.BitmapScalingMode="HighQuality"/>
         </Grid>
 
         <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
@@ -302,7 +299,12 @@
                                 <CheckBox x:Name="GuestAccessEnabledCheckBox"
                                           Content="Automatycznie uruchamiaj hotspot i udostępnianie QR"
                                           Foreground="{StaticResource Brush.TextPrimary}"
-                                          FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                                          FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <CheckBox x:Name="ShowGuestInstructionsCheckBox"
+                                          Content="Pokazuj krótką instrukcję dla gości pod siatką zdjęć"
+                                          IsEnabled="{Binding IsChecked, ElementName=GuestAccessEnabledCheckBox}"
+                                          Foreground="{StaticResource Brush.TextPrimary}"
+                                          FontSize="13" Margin="0,0,0,16"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>

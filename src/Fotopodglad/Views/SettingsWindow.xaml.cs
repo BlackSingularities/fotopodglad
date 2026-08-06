@@ -44,6 +44,7 @@ public partial class SettingsWindow : Window
         WifiPasswordBox.Password = settings.WifiPassphrase ?? string.Empty;
         WatchedFolderTextBox.Text = settings.WatchedFolderPath ?? string.Empty;
         GuestAccessEnabledCheckBox.IsChecked = settings.GuestAccessEnabled;
+        ShowGuestInstructionsCheckBox.IsChecked = settings.ShowGuestInstructions;
         ShowPhotoParametersCheckBox.IsChecked = settings.ShowPhotoParameters;
         GridColumnsTextBox.Text = settings.GridColumnCount.ToString(CultureInfo.InvariantCulture);
         ManualHoldTextBox.Text = settings.ManualHoldSeconds.ToString(CultureInfo.InvariantCulture);
@@ -96,6 +97,7 @@ public partial class SettingsWindow : Window
         }
 
         _settings.GuestAccessEnabled = GuestAccessEnabledCheckBox.IsChecked == true;
+        _settings.ShowGuestInstructions = ShowGuestInstructionsCheckBox.IsChecked == true;
         _settings.WatchedFolderPath = Path.GetFullPath(watchedFolder);
         _settings.ShowPhotoParameters = ShowPhotoParametersCheckBox.IsChecked == true;
         _settings.WifiSsid = string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid;

@@ -13,6 +13,9 @@ public sealed class AppSettings
     /// <summary>Domyślnie true: hotspot i kody QR uruchamiają się automatycznie wraz z aplikacją.</summary>
     public bool GuestAccessEnabled { get; set; } = true;
 
+    /// <summary>Czy pod siatką pokazywać krótką instrukcję łączenia i pobierania zdjęć dla gości.</summary>
+    public bool ShowGuestInstructions { get; set; } = true;
+
     /// <summary>Puste/null = losowe SSID generowane przy każdym starcie hotspotu.</summary>
     public string? WifiSsid { get; set; }
 

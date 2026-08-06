@@ -6,6 +6,7 @@
          używanych przez hotspot WiFi dla gości (Services/GuestGallery). -->
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <!-- Wyłączone celowo: UseWPF + UseWindowsForms razem powodują konflikt niejawnych using (System.Windows
          vs System.Windows.Forms definiują te same nazwy typów, np. Application, UserControl, Image, Point). -->
@@ -13,10 +14,24 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Fotopodglad.ico</ApplicationIcon>
     <AssemblyName>Fotopodglad</AssemblyName>
     <RootNamespace>Fotopodglad</RootNamespace>
     <LangVersion>12.0</LangVersion>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\FotopodgladLogo.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
