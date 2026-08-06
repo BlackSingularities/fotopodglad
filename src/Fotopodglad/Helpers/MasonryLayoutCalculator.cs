@@ -5,39 +5,34 @@ namespace Fotopodglad.Helpers;
 public readonly record struct MasonrySlot(double X, double Y, double Width, double Height);
 
 /// <summary>
-/// Czysta, testowalna implementacja algorytmu masonry używanego przez MasonryGridControl:
-/// iterując zdjęcia w kolejności od najnowszego (indeks 0), każde trafia do aktualnie
-/// najkrótszej kolumny — dzięki temu najnowsze zawsze ląduje najbliżej Y=0.
+/// Czysta, testowalna implementacja regularnej siatki używanej przez MasonryGridControl.
+/// Wszystkie kafelki mają identyczny rozmiar 3:2 i tworzą pełne rzędy od lewej do prawej.
+/// Zdjęcia o innych proporcjach są przycinane przez Image.Stretch=UniformToFill.
 /// </summary>
 public static class MasonryLayoutCalculator
 {
     public static (Dictionary<PhotoItem, MasonrySlot> Slots, double TotalHeight) ComputeLayout(
         IEnumerable<PhotoItem> itemsNewestFirst, int columnCount, double columnWidth)
     {
-        var slots = new Dictionary<PhotoItem, MasonrySlot>();
-        var columnHeights = new double[columnCount];
-
-        foreach (var item in itemsNewestFirst)
+        if (columnCount < 1)
         {
-            var shortestColumn = 0;
-            var shortestHeight = columnHeights[0];
-            for (var c = 1; c < columnCount; c++)
-            {
-                if (columnHeights[c] < shortestHeight)
-                {
-                    shortestHeight = columnHeights[c];
-                    shortestColumn = c;
-                }
-            }
-
-            var aspect = item.Exif.AspectRatio is > 0 ? item.Exif.AspectRatio : 1.5;
-            var tileHeight = columnWidth / aspect;
-
-            slots[item] = new MasonrySlot(shortestColumn * columnWidth, columnHeights[shortestColumn], columnWidth, tileHeight);
-            columnHeights[shortestColumn] += tileHeight;
+            throw new ArgumentOutOfRangeException(nameof(columnCount));
         }
 
-        var totalHeight = columnHeights.Length > 0 ? columnHeights.Max() : 0;
+        const double tileAspectRatio = 3.0 / 2.0;
+        var tileHeight = columnWidth / tileAspectRatio;
+        var items = itemsNewestFirst.ToList();
+        var slots = new Dictionary<PhotoItem, MasonrySlot>(items.Count);
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            var column = index % columnCount;
+            var row = index / columnCount;
+            slots[items[index]] = new MasonrySlot(column * columnWidth, row * tileHeight, columnWidth, tileHeight);
+        }
+
+        var rowCount = (int)Math.Ceiling((double)items.Count / columnCount);
+        var totalHeight = rowCount * tileHeight;
         return (slots, totalHeight);
     }
 }

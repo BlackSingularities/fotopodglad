@@ -12,11 +12,9 @@ using Fotopodglad.Services;
 namespace Fotopodglad.Controls;
 
 /// <summary>
-/// Niekończąca się siatka masonry o 6 kolumnach: zdjęcia pakowane pionowo bez odstępów, kolejne zawsze
-/// trafiają do aktualnie najkrótszej kolumny. Zdjęcia w ItemsSource są posortowane malejąco po czasie
-/// (najnowsze na indeksie 0), więc iterując w tej kolejności najnowsze zawsze ląduje najbliżej Y=0.
-/// Wirtualizacja własna: tylko elementy w viewport + bufor dostają realny wizual (Image), reszta to
-/// sam wyliczony layout — potrzebne, bo układ masonry nie jest wspierany przez VirtualizingStackPanel.
+/// Regularna siatka równych kafelków 3:2. Zdjęcia są układane rzędami od lewej do prawej,
+/// przycinane do kafelków i przewijane pionowo. Własna wirtualizacja tworzy kontrolki Image
+/// tylko dla bieżącego viewportu i bufora, więc duże foldery nie obciążają niepotrzebnie UI.
 /// </summary>
 public partial class MasonryGridControl : UserControl
 {
@@ -72,6 +70,17 @@ public partial class MasonryGridControl : UserControl
 
         LayoutCanvas.Width = ActualWidth;
         LayoutCanvas.Height = totalHeight;
+
+        // Kolekcja jest uzupełniana asynchronicznie podczas skanu folderu. Po każdym wstawieniu
+        // zmieniają się indeksy wszystkich późniejszych zdjęć, więc już istniejące kontrolki również
+        // muszą dostać nowe współrzędne — samo przeliczenie słownika slotów nie wystarcza.
+        foreach (var (item, image) in _realizedImages)
+        {
+            if (_layout.TryGetValue(item, out var slot))
+            {
+                ApplySlot(image, slot);
+            }
+        }
 
         if (wasAtTop)
         {
@@ -143,10 +152,7 @@ public partial class MasonryGridControl : UserControl
     {
         var image = _imagePool.Count > 0 ? _imagePool.Pop() : CreateImage();
 
-        Canvas.SetLeft(image, slot.X);
-        Canvas.SetTop(image, slot.Y);
-        image.Width = slot.Width;
-        image.Height = slot.Height;
+        ApplySlot(image, slot);
         image.Tag = item;
         image.Source = null;
 
@@ -155,6 +161,14 @@ public partial class MasonryGridControl : UserControl
 
         var decodeWidth = Math.Max(1, (int)(slot.Width * 1.5));
         _ = LoadThumbnailAsync(item, image, decodeWidth);
+    }
+
+    private static void ApplySlot(Image image, MasonrySlot slot)
+    {
+        Canvas.SetLeft(image, slot.X);
+        Canvas.SetTop(image, slot.Y);
+        image.Width = slot.Width;
+        image.Height = slot.Height;
     }
 
     private async Task LoadThumbnailAsync(PhotoItem item, Image target, int decodeWidth)

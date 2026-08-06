@@ -6,7 +6,7 @@ namespace Fotopodglad.Tests.Services;
 
 public sealed class MasonryLayoutTests
 {
-    private static PhotoItem MakePhoto(long sequenceId, double aspectRatio)
+    private static PhotoItem MakePhoto(long sequenceId, double aspectRatio = 1.5)
     {
         var width = 1000;
         var height = (int)(width / aspectRatio);
@@ -21,58 +21,49 @@ public sealed class MasonryLayoutTests
     }
 
     [Fact]
-    public void ComputeLayout_PlacesNewestItem_AtTopOfFirstColumn()
+    public void ComputeLayout_PlacesNewestItem_AtTopLeft()
     {
-        var newest = MakePhoto(3, 1.5);
-        var items = new[] { newest, MakePhoto(2, 1.5), MakePhoto(1, 1.5) };
-
-        var (slots, _) = MasonryLayoutCalculator.ComputeLayout(items, columnCount: 6, columnWidth: 100);
-
-        var newestSlot = slots[newest];
-        Assert.Equal(0, newestSlot.X);
-        Assert.Equal(0, newestSlot.Y);
-    }
-
-    [Fact]
-    public void ComputeLayout_FillsColumnsLeftToRight_BeforeStacking()
-    {
-        var items = Enumerable.Range(1, 6).Select(i => MakePhoto(i, 1.0)).ToArray();
-
-        var (slots, _) = MasonryLayoutCalculator.ComputeLayout(items, columnCount: 6, columnWidth: 100);
-
-        // Wszystkie kolumny mają na starcie wysokość 0 — 6 kolejnych zdjęć powinno trafić
-        // do 6 różnych kolumn (0..5), każde z Y=0, zanim jakakolwiek kolumna zacznie się piętrzyć.
-        var usedColumns = slots.Values.Select(s => s.X).Distinct().OrderBy(x => x).ToArray();
-        Assert.Equal(new double[] { 0, 100, 200, 300, 400, 500 }, usedColumns);
-        Assert.All(slots.Values, s => Assert.Equal(0, s.Y));
-    }
-
-    [Fact]
-    public void ComputeLayout_AddsNextItem_ToShortestColumn()
-    {
-        // Zdjęcie 1: szerokie (mała wysokość kafelka), trafia do kolumny 0.
-        // Zdjęcie 2: wysokie (duża wysokość kafelka), trafia do kolumny 1.
-        // Zdjęcie 3 powinno trafić do kolumny 0, bo po pierwszych dwóch jest krótsza.
-        var wide = MakePhoto(3, 3.0);   // tileHeight = 100/3 ≈ 33.3 -> kolumna 0
-        var tall = MakePhoto(2, 0.5);   // tileHeight = 100/0.5 = 200 -> kolumna 1
-        var third = MakePhoto(1, 1.0);  // tileHeight = 100
+        var newest = MakePhoto(3);
 
         var (slots, _) = MasonryLayoutCalculator.ComputeLayout(
-            new[] { wide, tall, third }, columnCount: 2, columnWidth: 100);
+            new[] { newest, MakePhoto(2), MakePhoto(1) }, columnCount: 3, columnWidth: 120);
 
-        Assert.Equal(0, slots[wide].X);
-        Assert.Equal(100, slots[tall].X);
-        Assert.Equal(0, slots[third].X); // krótsza kolumna po dwóch pierwszych elementach
-        Assert.Equal(slots[wide].Height, slots[third].Y, precision: 5);
+        Assert.Equal(new MasonrySlot(0, 0, 120, 80), slots[newest]);
     }
 
     [Fact]
-    public void ComputeLayout_TotalHeight_EqualsTallestColumn()
+    public void ComputeLayout_FillsCompleteRow_LeftToRight()
     {
-        var items = new[] { MakePhoto(1, 1.0), MakePhoto(2, 1.0) };
+        var items = Enumerable.Range(1, 6).Select(i => MakePhoto(i)).ToArray();
 
-        var (_, totalHeight) = MasonryLayoutCalculator.ComputeLayout(items, columnCount: 6, columnWidth: 120);
+        var (slots, _) = MasonryLayoutCalculator.ComputeLayout(items, columnCount: 6, columnWidth: 100);
 
-        Assert.Equal(120, totalHeight, precision: 5); // jeden element na kolumnę, wysokość = szerokość (aspect 1.0)
+        Assert.Equal(new double[] { 0, 100, 200, 300, 400, 500 }, items.Select(item => slots[item].X));
+        Assert.All(items, item => Assert.Equal(0, slots[item].Y));
+        Assert.All(items, item => Assert.Equal(100.0 / 1.5, slots[item].Height, precision: 5));
+    }
+
+    [Fact]
+    public void ComputeLayout_StartsNextRowAfterColumnCountItems()
+    {
+        var items = Enumerable.Range(1, 7).Select(i => MakePhoto(i, aspectRatio: i)).ToArray();
+
+        var (slots, _) = MasonryLayoutCalculator.ComputeLayout(items, columnCount: 6, columnWidth: 120);
+
+        Assert.Equal(new MasonrySlot(0, 80, 120, 80), slots[items[6]]);
+    }
+
+    [Fact]
+    public void ComputeLayout_UsesSameTileSizeForEveryPhotoAspectRatio()
+    {
+        var wide = MakePhoto(1, 4.0);
+        var portrait = MakePhoto(2, 0.4);
+
+        var (slots, totalHeight) = MasonryLayoutCalculator.ComputeLayout(
+            new[] { wide, portrait }, columnCount: 1, columnWidth: 150);
+
+        Assert.Equal(100, slots[wide].Height);
+        Assert.Equal(100, slots[portrait].Height);
+        Assert.Equal(200, totalHeight);
     }
 }
