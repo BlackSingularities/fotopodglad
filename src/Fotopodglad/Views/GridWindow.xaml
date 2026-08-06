@@ -4,7 +4,7 @@
         xmlns:models="clr-namespace:Fotopodglad.Models"
         Title="Fotopodgląd — siatka"
         WindowStyle="None"
-        ResizeMode="NoResize"
+        ResizeMode="CanMinimize"
         WindowStartupLocation="Manual"
         KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">

@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:Fotopodglad.Controls"
         Title="Fotopodgląd — podgląd"
         WindowStyle="None"
-        ResizeMode="NoResize"
+        ResizeMode="CanMinimize"
         WindowStartupLocation="Manual"
         KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">

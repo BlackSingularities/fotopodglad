@@ -4,7 +4,7 @@
         Title="Fotopodgląd — ustawienia"
         Width="680" Height="760"
         WindowStartupLocation="CenterScreen"
-        ShowActivated="True" Topmost="True"
+        ShowActivated="True"
         ResizeMode="NoResize"
         Background="{StaticResource Brush.Background}"
         Foreground="{StaticResource Brush.TextPrimary}"
