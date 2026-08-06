@@ -32,6 +32,10 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     private int _pendingBacklogCount;
     private int _initialScanCompleted;
     private int _finalLatestAnnounced;
+    private int _backlogReadySinceMerge;
+    private int _backlogMergeScheduled;
+    private int _firstBacklogBatchPublished;
+    private PhotoItem? _announcedBacklogPreview;
 
     public ObservableCollection<PhotoItem> Photos { get; } = new BulkObservableCollection<PhotoItem>();
 
@@ -62,6 +66,10 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         _pendingBacklogCount = 0;
         _initialScanCompleted = 0;
         _finalLatestAnnounced = 0;
+        _backlogReadySinceMerge = 0;
+        _backlogMergeScheduled = 0;
+        _firstBacklogBatchPublished = 0;
+        _announcedBacklogPreview = null;
         _watcher.Start(folderPath);
     }
 
@@ -83,9 +91,11 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
 
     private async Task HandlePhotoReadyAsync(string filePath, bool isBacklog)
     {
+        var metadataSlotAcquired = false;
         try
         {
             await _metadataSlots.WaitAsync();
+            metadataSlotAcquired = true;
             ExifData exif;
             try
             {
@@ -123,6 +133,12 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
             if (isBacklog)
             {
                 _backlogItems.Add(item);
+                var ready = Interlocked.Increment(ref _backlogReadySinceMerge);
+                var threshold = Volatile.Read(ref _firstBacklogBatchPublished) == 0 ? 12 : 128;
+                if (ready >= threshold)
+                {
+                    ScheduleProgressiveBacklogMerge();
+                }
             }
             else
             {
@@ -131,7 +147,7 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         }
         finally
         {
-            if (_metadataSlots.CurrentCount < Math.Clamp(Environment.ProcessorCount, 2, 8))
+            if (metadataSlotAcquired)
             {
                 _metadataSlots.Release();
             }
@@ -140,6 +156,32 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
                 TryAnnounceLatestAfterBacklog();
             }
         }
+    }
+
+    private void ScheduleProgressiveBacklogMerge()
+    {
+        if (Interlocked.CompareExchange(ref _backlogMergeScheduled, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = _dispatcher.InvokeAsync(() =>
+        {
+            Interlocked.Exchange(ref _backlogReadySinceMerge, 0);
+            MergeBacklog();
+            var isFirstPublishedBatch = Interlocked.Exchange(ref _firstBacklogBatchPublished, 1) == 0;
+            if (isFirstPublishedBatch && _announcedBacklogPreview is null && Latest is { } firstPreview)
+            {
+                _announcedBacklogPreview = firstPreview;
+                NewestChanged?.Invoke(firstPreview);
+            }
+            Interlocked.Exchange(ref _backlogMergeScheduled, 0);
+
+            if (Volatile.Read(ref _backlogReadySinceMerge) >= 128)
+            {
+                ScheduleProgressiveBacklogMerge();
+            }
+        });
     }
 
     private void OnInitialScanCompleted()
@@ -166,8 +208,9 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         _ = _dispatcher.InvokeAsync(() =>
         {
             MergeBacklog();
-            if (Latest is { } latest)
+            if (Latest is { } latest && !ReferenceEquals(latest, _announcedBacklogPreview))
             {
+                _announcedBacklogPreview = latest;
                 NewestChanged?.Invoke(latest);
             }
         });
@@ -180,7 +223,18 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
             return;
         }
 
-        var combined = Photos.Concat(_backlogItems)
+        var newlyDecoded = new List<PhotoItem>();
+        while (_backlogItems.TryTake(out var item))
+        {
+            newlyDecoded.Add(item);
+        }
+
+        if (newlyDecoded.Count == 0)
+        {
+            return;
+        }
+
+        var combined = Photos.Concat(newlyDecoded)
             .GroupBy(photo => photo.FilePath, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
@@ -193,7 +247,6 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         }
 
         bulk.ReplaceAll(combined);
-        while (_backlogItems.TryTake(out _)) { }
     }
 
     private void InsertLivePhoto(PhotoItem item)

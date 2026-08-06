@@ -50,6 +50,21 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         Assert.True(downloadReported);
     }
 
+    [Fact]
+    public async Task Start_DoesNotBindToTransientAdvertisedHotspotAddress()
+    {
+        var library = new FakePhotoLibrary();
+        using var server = new GuestGalleryHttpServer(library, port: 0);
+
+        // Adres TEST-NET nie jest przypisany do komputera. Serwer ma go jedynie reklamować w QR,
+        // a nasłuch powinien pozostać odporny na chwilową zmianę adresu adaptera Windows.
+        server.Start("192.0.2.123");
+
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        using var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/photo/1");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     public void Dispose()
     {
         try

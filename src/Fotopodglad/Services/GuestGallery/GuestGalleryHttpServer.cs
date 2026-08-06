@@ -49,7 +49,12 @@ public sealed class GuestGalleryHttpServer : IDisposable
         }
 
         _cts = new CancellationTokenSource();
-        _listener = new TcpListener(address, _configuredPort);
+        // Adapter Mobile Hotspot potrafi zmienić swój stan pomiędzy wykryciem adresu a Start().
+        // Nasłuch na Any eliminuje błąd WSAEADDRNOTAVAIL („adres nieprawidłowy w tym kontekście”),
+        // natomiast QR nadal reklamuje wyłącznie przekazany adres lokalny sieci hotspotu.
+        _listener = new TcpListener(address.AddressFamily == AddressFamily.InterNetworkV6
+            ? IPAddress.IPv6Any
+            : IPAddress.Any, _configuredPort);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
 
