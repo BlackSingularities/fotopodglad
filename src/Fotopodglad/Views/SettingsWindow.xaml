@@ -218,7 +218,7 @@
                            Foreground="{StaticResource Brush.TextSecondary}" FontSize="12" Margin="0,4,0,0"/>
             </StackPanel>
             <Image Grid.Column="1" Width="48" Height="48"
-                   Source="/Assets/FotopodgladLogo.png" RenderOptions.BitmapScalingMode="HighQuality"/>
+                   Source="/Assets/Icons/Fotopodglad-128.png" RenderOptions.BitmapScalingMode="HighQuality"/>
         </Grid>
 
         <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
