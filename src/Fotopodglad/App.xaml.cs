@@ -21,6 +21,7 @@ public partial class App : Application
     private ServiceProvider? _services;
     private bool _settingsDialogOpen;
     private bool _shutdownInProgress;
+    private bool _synchronizingWindowState;
 
     public static ServiceProvider Services { get; private set; } = null!;
 
@@ -112,6 +113,8 @@ public partial class App : Application
 
         mainViewWindow.Closing += OnApplicationWindowClosing;
         gridWindow.Closing += OnApplicationWindowClosing;
+        mainViewWindow.StateChanged += OnApplicationWindowStateChanged;
+        gridWindow.StateChanged += OnApplicationWindowStateChanged;
 
         mainViewWindow.Show();
         gridWindow.Show();
@@ -210,6 +213,31 @@ public partial class App : Application
             }
 
             Shutdown();
+        }
+    }
+
+    private void OnApplicationWindowStateChanged(object? sender, EventArgs e)
+    {
+        if (_synchronizingWindowState || sender is not Window changedWindow ||
+            changedWindow.WindowState is not (WindowState.Normal or WindowState.Minimized))
+        {
+            return;
+        }
+
+        _synchronizingWindowState = true;
+        try
+        {
+            // Dwa widoki tworzą jedną aplikację. Minimalizacja lub przywrócenie dowolnego z nich
+            // powinno objąć oba, zamiast pozostawiać drugi pełnoekranowy widok nad pulpitem.
+            foreach (var window in Windows.OfType<Window>()
+                         .Where(window => window is MainViewWindow or GridWindow))
+            {
+                window.WindowState = changedWindow.WindowState;
+            }
+        }
+        finally
+        {
+            _synchronizingWindowState = false;
         }
     }
 
@@ -330,9 +358,10 @@ public partial class App : Application
     private static void ConfigureWindowBounds(Window window, int left, int top, int width, int height)
     {
         window.WindowStyle = WindowStyle.None;
-        window.ResizeMode = ResizeMode.NoResize;
+        window.ResizeMode = ResizeMode.CanMinimize;
         window.WindowStartupLocation = WindowStartupLocation.Manual;
-        window.Topmost = true;
+        window.Topmost = false;
+        window.ShowInTaskbar = true;
 
         window.SourceInitialized += (_, _) =>
         {
