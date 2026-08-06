@@ -22,6 +22,14 @@
             <Setter Property="FontSize" Value="13"/><Setter Property="LineHeight" Value="20"/>
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/><Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
+        <Style x:Key="AboutFeatureTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/><Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+        <Style x:Key="AboutPill" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Brush.Control}"/><Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="10,5"/><Setter Property="Margin" Value="0,0,7,7"/>
+        </Style>
         <Style x:Key="SectionCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Brush.Card}"/><Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
             <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="12"/>
@@ -180,19 +188,85 @@
             <TabItem x:Name="AboutTab" Header="O aplikacji">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0"><StackPanel>
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
-                        <TextBlock x:Name="AboutAppNameTextBlock" Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
-                        <TextBlock Text="Podgląd, selekcja i bezstratne udostępnianie zdjęć podczas sesji." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
-                        <TextBlock Text="Obsługiwane są JPEG, PNG, TIFF, HEIC/HEIF oraz popularne formaty RAW: ARW, NEF/NRW, CR2/CR3, RAF, DNG, RW2, ORF i PEF. Dostępność konkretnego kodeka zależy od pliku i systemu." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="AboutAppNameTextBlock" Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock Text="Fotograficzne centrum podglądu, selekcji i lokalnego udostępniania zdjęć podczas sesji, wydarzeń i pracy zespołowej." Style="{StaticResource AboutBody}" Margin="0,7,16,0"/>
+                            </StackPanel>
+                            <Image Grid.Column="1" Width="58" Height="58" Source="/Assets/Icons/Fotopodglad-128.png"/>
+                        </Grid>
+                        <WrapPanel Margin="0,16,0,0">
+                            <Border Style="{StaticResource AboutPill}"><TextBlock Text="Windows 10 / 11" FontSize="11"/></Border>
+                            <Border Style="{StaticResource AboutPill}"><TextBlock Text="Działa lokalnie" FontSize="11"/></Border>
+                            <Border Style="{StaticResource AboutPill}"><TextBlock Text="1 lub wiele ekranów" FontSize="11"/></Border>
+                            <Border Style="{StaticResource AboutPill}"><TextBlock Text="Zdjęcia bez rekompresji" FontSize="11"/></Border>
+                        </WrapPanel>
                     </StackPanel></Border>
+
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
-                        <TextBlock Text="Skróty klawiszowe" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Style="{StaticResource AboutBody}" Text="Ctrl+P — ustawienia&#x0a;Esc — wyjście z powiększenia&#x0a;Home — najnowsze zdjęcie&#x0a;← / → — poprzednie / następne zdjęcie&#x0a;Ctrl+M — minimalizacja obu widoków&#x0a;F11 — pełny ekran / tryb okienkowy&#x0a;Dwuklik — widok 100% / dopasowanie"/>
+                        <TextBlock Text="Co robi Fotopodgląd" Style="{StaticResource SectionTitle}"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Border Background="{DynamicResource Brush.Control}" CornerRadius="8" Padding="13">
+                                <StackPanel><TextBlock Text="Okno A — podgląd" Style="{StaticResource AboutFeatureTitle}"/>
+                                    <TextBlock Text="Pokazuje wybrane albo najnowsze zdjęcie w dużym formacie. Może wyświetlać EXIF, histogram oraz ostrzeżenia o przepaleniach i niedoświetleniach." Style="{StaticResource AboutBody}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Background="{DynamicResource Brush.Control}" CornerRadius="8" Padding="13">
+                                <StackPanel><TextBlock Text="Okno B — galeria" Style="{StaticResource AboutFeatureTitle}"/>
+                                    <TextBlock Text="Pokazuje przewijaną siatkę miniaturek, instrukcję dla gości i kody QR. Kliknięte zdjęcie otwiera się w oknie podglądu, a prawy przycisk oznacza je do filtrowania." Style="{StaticResource AboutBody}"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Na jednym ekranie podgląd zajmuje górną część, a galeria dolne 40% wysokości. Po odłączeniu dodatkowego monitora aplikacja automatycznie przechodzi do układu jednoekranowego." Style="{StaticResource AboutBody}" Margin="0,13,0,0"/>
                     </StackPanel></Border>
+
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
-                        <TextBlock Text="Jak działa udostępnianie" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="Pierwszy QR łączy telefon z hotspotem, drugi pobiera dokładnie zdjęcie widoczne w podglądzie. Po pięciu minutach bez pobierania aplikacja zmienia hasło sesji. Liczba równoległych pobrań jest ograniczona, a pliki wysyłane są w oryginalnej jakości." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="Jak rozpocząć sesję" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="1. Wybierz folder, do którego aparat zapisuje zdjęcia.&#x0a;2. Przypisz podgląd i galerię do odpowiednich ekranów.&#x0a;3. Włącz hotspot, jeżeli goście mają pobierać zdjęcia przez QR.&#x0a;4. Fotografuj — nowe pliki pojawią się automatycznie, bez ręcznego odświeżania." Style="{StaticResource AboutBody}"/>
                     </StackPanel></Border>
-                    <Border Style="{StaticResource SectionCard}"><TextBlock><Hyperlink NavigateUri="https://github.com/BlackSingularities/fotopodglad" RequestNavigate="OnRepoLinkRequestNavigate"><Run Text="github.com/BlackSingularities/fotopodglad"/></Hyperlink></TextBlock></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Hotspot i udostępnianie przez QR" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Pierwszy kod QR łączy telefon z siecią Wi‑Fi utworzoną przez komputer. Drugi prowadzi zawsze do zdjęcia widocznego aktualnie w podglądzie — nie po prostu do najnowszego pliku." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="Zdjęcia są udostępniane bezpośrednio z wybranego folderu w oryginalnej jakości, bez rekompresji. Limit równoległych pobrań chroni komputer i sieć przed przeciążeniem. Po pięciu minutach bez pobierania hasło sesji jest zmieniane, a kody QR aktualizują się automatycznie." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                        <TextBlock Text="Hotspot wymaga obsługi mobilnego punktu dostępu przez kartę i sterownik Wi‑Fi. Zakładka Diagnostyka pokazuje stan uruchamiania, adres IP, próby automatycznej naprawy i czytelny opis błędu." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                    </StackPanel></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Szybkość i niezawodność" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="• Najpierw ładowane są zdjęcia widoczne na ekranie i najnowszy podgląd.&#x0a;• Aplikacja korzysta z miniaturek osadzonych w plikach, gdy są dostępne.&#x0a;• EXIF i cięższe dekodowanie są wykonywane dopiero wtedy, gdy są potrzebne.&#x0a;• Nieaktualne operacje są anulowane podczas szybkiego przechodzenia między zdjęciami.&#x0a;• Pamięć podręczna ma regulowany limit i usuwa najstarsze elementy.&#x0a;• Po utracie dysku lub folderu obserwowanie zostaje automatycznie wznowione po jego powrocie." Style="{StaticResource AboutBody}"/>
+                    </StackPanel></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Obsługiwane pliki" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Standardowe: JPEG, JPG, PNG i TIFF.&#x0a;Nowoczesne: HEIC i HEIF.&#x0a;RAW: ARW, NEF, NRW, CR2, CR3, RAF, DNG, RW2, ORF i PEF." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="Dostępność podglądu konkretnego pliku RAW lub HEIC zależy od jego wariantu oraz kodeków dostępnych w systemie. Plik pobierany przez gościa pozostaje oryginałem, niezależnie od formatu użytego do podglądu." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                    </StackPanel></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Sterowanie" Style="{StaticResource SectionTitle}"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Klawiatura" Style="{StaticResource AboutFeatureTitle}"/>
+                                <TextBlock Style="{StaticResource AboutBody}" Text="Ctrl+P — ustawienia&#x0a;Esc — wyjście z powiększenia&#x0a;Home — najnowsze zdjęcie&#x0a;← / → — poprzednie / następne zdjęcie&#x0a;Ctrl+M — minimalizacja obu widoków&#x0a;F11 — pełny ekran / tryb okienkowy"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Mysz" Style="{StaticResource AboutFeatureTitle}"/>
+                                <TextBlock Style="{StaticResource AboutBody}" Text="Kliknięcie miniatury — wybór zdjęcia&#x0a;Prawy przycisk — oznaczenie zdjęcia&#x0a;Kółko — przybliżanie i oddalanie&#x0a;Przeciąganie — przesuwanie powiększenia&#x0a;Dwuklik — widok 100% / dopasowanie"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Prywatność i dane" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Fotopodgląd nie wysyła zdjęć do chmury ani zewnętrznej usługi. Galeria dla gości działa lokalnie pomiędzy komputerem a urządzeniami połączonymi z hotspotem. Aplikacja nie modyfikuje i nie kopiuje zdjęć źródłowych." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="Ustawienia użytkownika są przechowywane w pliku %AppData%\Fotopodglad\settings.json. Cache miniaturek działa wyłącznie w pamięci operacyjnej i respektuje limit ustawiony przez użytkownika." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                    </StackPanel></Border>
+
+                    <Border Style="{StaticResource SectionCard}"><StackPanel>
+                        <TextBlock Text="Diagnostyka, aktualizacje i pomoc" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="W zakładce Diagnostyka sprawdzisz stan hotspotu, adres serwera, dostępność folderu i aktywne pobrania. Aplikacja może również sprawdzać najnowsze wydanie w GitHub Releases — automatycznie przy starcie lub ręcznie przyciskiem „Sprawdź teraz”." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="Kod źródłowy, lista zmian, wydania i plik wykonywalny:" Style="{StaticResource AboutBody}" Margin="0,10,0,4"/>
+                        <TextBlock><Hyperlink NavigateUri="https://github.com/BlackSingularities/fotopodglad" RequestNavigate="OnRepoLinkRequestNavigate"><Run Text="github.com/BlackSingularities/fotopodglad"/></Hyperlink></TextBlock>
+                    </StackPanel></Border>
                 </StackPanel></ScrollViewer>
             </TabItem>
         </TabControl>

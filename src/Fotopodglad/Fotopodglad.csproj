@@ -18,7 +18,7 @@
     <ApplicationIcon>Assets\Fotopodglad.ico</ApplicationIcon>
     <AssemblyName>Fotopodglad</AssemblyName>
     <RootNamespace>Fotopodglad</RootNamespace>
-    <Version>2.0.3</Version>
+    <Version>2.0.4</Version>
     <LangVersion>12.0</LangVersion>
   </PropertyGroup>
 
