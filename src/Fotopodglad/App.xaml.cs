@@ -34,8 +34,12 @@ public partial class App : Application
 
         settings.WatchedFolderPath = folderPath;
 
+        // Lista ekranów potrzebna już tutaj (przed zbudowaniem kontenera DI), żeby okno ustawień
+        // mogło zaoferować wybór konkretnego monitora dla każdego z dwóch okien aplikacji.
+        var screens = new ScreenService().GetScreens();
+
         var wantsToChangeSettings = MessageBox.Show(
-            "Czy chcesz zmienić ustawienia (WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
+            "Czy chcesz zmienić ustawienia (ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
             "Fotopodgląd — ustawienia",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,
@@ -43,7 +47,7 @@ public partial class App : Application
 
         if (wantsToChangeSettings)
         {
-            var settingsWindow = new SettingsWindow(settings);
+            var settingsWindow = new SettingsWindow(settings, screens);
             settingsWindow.ShowDialog();
             // Niezależnie od wyniku (Zapisz/Anuluj) startujemy dalej — SettingsWindow modyfikuje `settings`
             // w miejscu tylko gdy użytkownik kliknie "Zapisz i uruchom".
@@ -63,10 +67,12 @@ public partial class App : Application
         // i nie powinno to w żaden sposób blokować startu ani działania głównej aplikacji.
         _ = _services.GetRequiredService<GuestAccessCoordinator>().StartAsync();
 
-        var screenService = _services.GetRequiredService<IScreenService>();
-        var screens = screenService.GetScreens();
-        var screenA = screens[0];
-        var screenB = screens.Count > 1 ? screens[1] : screens[0];
+        // Indeksy z ustawień są clampowane na wypadek, gdyby użytkownik wybrał ekran, który w międzyczasie
+        // odłączono (np. inny zestaw monitorów niż przy poprzednim zapisie ustawień).
+        var mainViewScreenIndex = Math.Clamp(settings.MainViewScreenIndex, 0, screens.Count - 1);
+        var gridScreenIndex = Math.Clamp(settings.GridScreenIndex, 0, screens.Count - 1);
+        var screenA = screens[mainViewScreenIndex];
+        var screenB = screens[gridScreenIndex];
 
         var mainViewWindow = _services.GetRequiredService<MainViewWindow>();
         ConfigureFullscreenWindow(mainViewWindow, screenA);

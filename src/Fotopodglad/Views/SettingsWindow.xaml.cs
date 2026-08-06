@@ -3,17 +3,35 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Navigation;
 using Fotopodglad.Configuration;
+using Fotopodglad.Models;
 
 namespace Fotopodglad.Views;
 
 public partial class SettingsWindow : Window
 {
     private readonly AppSettings _settings;
+    private readonly IReadOnlyList<ScreenInfo> _screens;
 
-    public SettingsWindow(AppSettings settings)
+    public SettingsWindow(AppSettings settings, IReadOnlyList<ScreenInfo> screens)
     {
         InitializeComponent();
         _settings = settings;
+        _screens = screens;
+
+        var screenLabels = _screens
+            .Select((screen, index) => $"Ekran {index + 1} — {screen.Width}×{screen.Height}{(screen.IsPrimary ? " (główny)" : "")}")
+            .ToList();
+
+        MainViewScreenComboBox.ItemsSource = screenLabels;
+        GridScreenComboBox.ItemsSource = screenLabels;
+        MainViewScreenComboBox.SelectedIndex = ClampScreenIndex(settings.MainViewScreenIndex);
+        GridScreenComboBox.SelectedIndex = ClampScreenIndex(settings.GridScreenIndex);
+
+        if (_screens.Count <= 1)
+        {
+            MainViewScreenComboBox.IsEnabled = false;
+            GridScreenComboBox.IsEnabled = false;
+        }
 
         WifiSsidTextBox.Text = settings.WifiSsid ?? string.Empty;
         WifiPasswordTextBox.Text = settings.WifiPassphrase ?? string.Empty;
@@ -22,6 +40,8 @@ public partial class SettingsWindow : Window
 
         AuthorTextBlock.Text = "Adam Rędzikowski";
     }
+
+    private int ClampScreenIndex(int index) => Math.Clamp(index, 0, Math.Max(0, _screens.Count - 1));
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
@@ -41,6 +61,8 @@ public partial class SettingsWindow : Window
         _settings.WifiPassphrase = string.IsNullOrWhiteSpace(WifiPasswordTextBox.Text) ? null : WifiPasswordTextBox.Text.Trim();
         _settings.GridColumnCount = columns;
         _settings.ManualHoldSeconds = holdSeconds;
+        _settings.MainViewScreenIndex = MainViewScreenComboBox.SelectedIndex;
+        _settings.GridScreenIndex = GridScreenComboBox.SelectedIndex;
 
         DialogResult = true;
         Close();

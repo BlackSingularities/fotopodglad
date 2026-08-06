@@ -18,6 +18,12 @@ public sealed class AppSettings
     /// <summary>Ile sekund minimum trzymać ręcznie wybrane zdjęcie (Okno B), zanim wróci "zawsze najnowsze".</summary>
     public double ManualHoldSeconds { get; set; } = 10;
 
+    /// <summary>Indeks ekranu (z IScreenService.GetScreens()) dla Okna A — podgląd najnowszego zdjęcia.</summary>
+    public int MainViewScreenIndex { get; set; } = 0;
+
+    /// <summary>Indeks ekranu dla Okna B — siatka zdjęć.</summary>
+    public int GridScreenIndex { get; set; } = 1;
+
     private static string SettingsFilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Fotopodglad", "settings.json");
 
