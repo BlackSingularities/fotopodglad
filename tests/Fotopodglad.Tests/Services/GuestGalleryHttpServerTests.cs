@@ -37,8 +37,8 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         });
 
         using var server = new GuestGalleryHttpServer(library, port: 0);
-        var downloadReported = false;
-        server.PhotoDownloaded += () => downloadReported = true;
+        var downloadReported = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.PhotoDownloaded += () => downloadReported.TrySetResult();
         server.Start(IPAddress.Loopback.ToString());
 
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
@@ -48,7 +48,7 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("zdjecie.jpg", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         Assert.Equal(expected, await response.Content.ReadAsByteArrayAsync());
-        Assert.True(downloadReported);
+        await downloadReported.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
