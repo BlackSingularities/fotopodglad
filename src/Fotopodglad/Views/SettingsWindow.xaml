@@ -27,6 +27,12 @@
             <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
+        <Style x:Key="AboutBody" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="20"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
         <Style x:Key="SectionCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
@@ -341,20 +347,76 @@
             </TabItem>
 
             <TabItem Header="O aplikacji">
-                <Border Style="{StaticResource SectionCard}" Margin="0,16,8,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,16,8,0">
                     <StackPanel>
-                        <TextBlock Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
-                        <TextBlock Text="Podgląd zdjęć podczas sesji fotograficznej"
-                                   Foreground="{StaticResource Brush.TextSecondary}" Margin="0,5,0,24"/>
-                        <TextBlock Text="AUTOR" Style="{StaticResource HintText}"/>
-                        <TextBlock Margin="0,4,0,0">
-                            <Hyperlink x:Name="RepoLink" NavigateUri="https://github.com/BlackSingularities/fotopodglad"
-                                       RequestNavigate="OnRepoLinkRequestNavigate">
-                                <Run Text="github.com/BlackSingularities/fotopodglad"/>
-                            </Hyperlink>
-                        </TextBlock>
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock Text="Podgląd i udostępnianie zdjęć podczas sesji fotograficznej"
+                                           Foreground="{StaticResource Brush.TextSecondary}" Margin="0,5,0,18"/>
+                                <TextBlock Style="{StaticResource AboutBody}"
+                                           Text="Aplikacja obserwuje wybrany folder i automatycznie pokazuje nowe zdjęcia. Fotograf może od razu prezentować ujęcia klientowi, wracać do wcześniejszych kadrów i udostępniać wyświetlane zdjęcie telefonem — bez kopiowania plików do dodatkowej biblioteki."/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="Szybki start" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="1. Wybierz folder, do którego trafiają zdjęcia z aparatu." Style="{StaticResource AboutBody}"/>
+                                <TextBlock Text="2. Ustaw ekran podglądu i ekran siatki. Przy jednym monitorze aplikacja sama dzieli ekran w proporcji 60/40."
+                                           Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                                <TextBlock Text="3. Zapisz ustawienia. Nowe pliki JPG będą pojawiały się automatycznie, bez ręcznego odświeżania."
+                                           Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="Widoki i sterowanie" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="Podgląd" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="Pokazuje najnowsze zdjęcie, jego nazwę i dostępne parametry EXIF. Kółko myszy przybliża i oddala fotografię. Panel parametrów można ukryć w ustawieniach."
+                                           Style="{StaticResource AboutBody}" Margin="0,0,0,14"/>
+                                <TextBlock Text="Siatka zdjęć" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="Zawiera wszystkie zdjęcia z sesji w równych kafelkach. Siatkę przewija się pionowo. Kliknięcie miniatury pokazuje wybrane zdjęcie w głównym podglądzie przez ustawiony czas."
+                                           Style="{StaticResource AboutBody}" Margin="0,0,0,14"/>
+                                <TextBlock Text="Ustawienia" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Style="{StaticResource AboutBody}">
+                                    <Run Text="Naciśnij "/><Run Text="Ctrl+P" FontWeight="Bold" Foreground="{StaticResource Brush.TextPrimary}"/><Run Text=", aby w dowolnym momencie zmienić folder, ekrany, siatkę, czas podglądu, parametry zdjęcia, hotspot lub wielkość QR."/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="Hotspot i kody QR" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="Po włączeniu tej funkcji pierwszy kod QR łączy telefon z siecią WiFi utworzoną przez komputer. Drugi kod pobiera dokładnie zdjęcie aktualnie widoczne w podglądzie."
+                                           Style="{StaticResource AboutBody}"/>
+                                <TextBlock Text="Panel QR ma własne miejsce obok siatki i nie zasłania zdjęć. Po 5 minutach bez pobierania hotspot jest zatrzymywany, a przy nowym zdjęciu uruchamia się ponownie."
+                                           Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="Prywatność i pliki" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="Fotopodgląd nie tworzy kopii zdjęć. Miniatury istnieją tylko w pamięci RAM, a pobieranie przez QR wysyła oryginalny plik bezpośrednio z wybranego folderu. Na dysku zapisywany jest wyłącznie plik ustawień aplikacji."
+                                           Style="{StaticResource AboutBody}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="AUTOR" Style="{StaticResource HintText}"/>
+                                <TextBlock Margin="0,4,0,0">
+                                    <Hyperlink x:Name="RepoLink" NavigateUri="https://github.com/BlackSingularities/fotopodglad"
+                                               RequestNavigate="OnRepoLinkRequestNavigate">
+                                        <Run Text="github.com/BlackSingularities/fotopodglad"/>
+                                    </Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
 

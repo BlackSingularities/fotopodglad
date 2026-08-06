@@ -8,9 +8,16 @@
         KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">
     <Grid>
-        <Grid x:Name="GridHost"/>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <!-- Auto rezerwuje dokładnie tyle miejsca, ile potrzebuje aktywny panel QR.
+                 Gdy panel jest ukryty, kolumna zwija się do zera. -->
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
 
-        <TextBlock Text="Oczekiwanie na zdjęcia…"
+        <Grid x:Name="GridHost" Grid.Column="0"/>
+
+        <TextBlock Grid.Column="0" Text="Oczekiwanie na zdjęcia…"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontSize="24" Foreground="{StaticResource Brush.TextSecondary}"
                    IsHitTestVisible="False">
@@ -26,7 +33,7 @@
             </TextBlock.Style>
         </TextBlock>
 
-        <Grid x:Name="GuestSidebarHost" Panel.ZIndex="20"
+        <Grid x:Name="GuestSidebarHost" Grid.Column="1"
               HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>
