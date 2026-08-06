@@ -121,7 +121,7 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
         {
             UpdatePhotoQr();
         }
-        else if (photo is not null && Status == GuestAccessStatus.IdleStopped)
+        else if (photo is not null && Status is GuestAccessStatus.IdleStopped or GuestAccessStatus.Unsupported)
         {
             _ = StartAsync();
         }
@@ -148,7 +148,7 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
         {
             UpdatePhotoQr();
         }
-        else if (Status == GuestAccessStatus.IdleStopped)
+        else if (Status is GuestAccessStatus.IdleStopped or GuestAccessStatus.Unsupported)
         {
             _ = StartAsync();
         }

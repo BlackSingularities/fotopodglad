@@ -83,6 +83,7 @@ public sealed class GuestAccessCoordinatorTests
         public string? Ssid => null;
         public string? Passphrase => null;
         public string? LocalIpAddress => null;
+        public string? FailureReason => null;
         public Task<bool> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task StopAsync()
         {

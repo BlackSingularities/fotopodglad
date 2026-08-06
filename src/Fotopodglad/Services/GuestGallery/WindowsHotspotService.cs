@@ -17,12 +17,14 @@ namespace Fotopodglad.Services.GuestGallery;
 /// </summary>
 public sealed class WindowsHotspotService : IHotspotService
 {
+    private const int StartAttemptCount = 3;
     private readonly AppSettings _settings;
     private NetworkOperatorTetheringManager? _tetheringManager;
 
     public string? Ssid { get; private set; }
     public string? Passphrase { get; private set; }
     public string? LocalIpAddress { get; private set; }
+    public string? FailureReason { get; private set; }
 
     public WindowsHotspotService(AppSettings settings)
     {
@@ -31,29 +33,61 @@ public sealed class WindowsHotspotService : IHotspotService
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
     {
+        FailureReason = null;
+        Ssid = string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
+        Passphrase = string.IsNullOrWhiteSpace(_settings.WifiPassphrase) ? GeneratePassphrase() : _settings.WifiPassphrase;
+
+        for (var attempt = 1; attempt <= StartAttemptCount; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (attempt > 1)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken);
+            }
+
+            if (await TryStartOnceAsync(cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<bool> TryStartOnceAsync(CancellationToken cancellationToken)
+    {
         try
         {
             var profile = NetworkInformation.GetInternetConnectionProfile();
             if (profile is null)
             {
+                FailureReason = "Brak aktywnego połączenia internetowego do udostępnienia.";
                 return false;
             }
 
             _tetheringManager = NetworkOperatorTetheringManager.CreateFromConnectionProfile(profile);
 
-            Ssid = string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
-            Passphrase = string.IsNullOrWhiteSpace(_settings.WifiPassphrase) ? GeneratePassphrase() : _settings.WifiPassphrase;
+            // Po awarii lub restarcie Windows potrafi pozostawić poprzednią sesję w stanie „On”,
+            // mimo że wirtualny adapter nie ma już adresu. Najpierw porządkujemy ten stan, a dopiero
+            // potem konfigurujemy ten sam komplet poświadczeń dla wszystkich prób bieżącego startu.
+            if (_tetheringManager.TetheringOperationalState == TetheringOperationalState.On)
+            {
+                await _tetheringManager.StopTetheringAsync();
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+            }
 
             var config = new NetworkOperatorTetheringAccessPointConfiguration
             {
-                Ssid = Ssid,
-                Passphrase = Passphrase
+                Ssid = Ssid!,
+                Passphrase = Passphrase!
             };
             await _tetheringManager.ConfigureAccessPointAsync(config);
 
             var result = await _tetheringManager.StartTetheringAsync();
             if (result.Status != TetheringOperationStatus.Success)
             {
+                FailureReason = $"Windows nie uruchomił hotspotu ({result.Status}): {result.AdditionalErrorMessage}";
                 _tetheringManager = null;
                 return false;
             }
@@ -63,17 +97,24 @@ public sealed class WindowsHotspotService : IHotspotService
             LocalIpAddress = await WaitForHotspotLocalIpAsync(cancellationToken);
             if (LocalIpAddress is not null)
             {
+                FailureReason = null;
                 return true;
             }
 
             await StopAsync();
+            FailureReason = "Hotspot wystartował, ale nie udało się wykryć jego lokalnego adresu IP.";
             return false;
         }
-        catch (Exception)
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
         {
             // Dowolny błąd (brak wsparcia sprzętowego, brak uprawnień, starszy Windows bez tej funkcji
             // dla aplikacji niepakietowanej MSIX) traktujemy jako "funkcja niedostępna na tym sprzęcie".
             await StopAsync();
+            FailureReason = $"{ex.GetType().Name} (0x{ex.HResult:X8}): {ex.Message}";
             return false;
         }
     }

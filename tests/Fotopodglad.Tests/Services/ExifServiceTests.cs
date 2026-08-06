@@ -8,13 +8,13 @@ public sealed class ExifServiceTests
     private readonly ExifService _exifService = new();
 
     [Theory]
-    [InlineData(1, "M")]
-    [InlineData(2, "P")]
-    [InlineData(3, "A")]
-    [InlineData(4, "S")]
-    [InlineData(7, "P")]
+    [InlineData(1, "Tryb ręczny")]
+    [InlineData(2, "Program automatyczny")]
+    [InlineData(3, "Priorytet przysłony")]
+    [InlineData(4, "Priorytet migawki")]
+    [InlineData(7, "Program portretowy")]
     [InlineData(0, null)]
-    public void GetExposureProgramLabel_ReturnsPasmLabel(int code, string? expected)
+    public void GetExposureProgramLabel_ReturnsFullProgramName(int code, string? expected)
     {
         Assert.Equal(expected, ExifService.GetExposureProgramLabel(code));
     }
