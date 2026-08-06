@@ -10,7 +10,7 @@
         dwa kody QR, które gość skanuje aparatem telefonu. Nazwa sieci/hasło nigdy nie są pokazywane
         tekstem, wyłącznie zakodowane w QR "dołącz do WiFi". Widoczny tylko, gdy hotspot faktycznie działa.
     -->
-    <Border x:Name="RootBorder" Margin="0,0,32,32" Padding="18"
+    <Border x:Name="RootBorder" Margin="24,0,32,32" Padding="18"
             Background="{StaticResource Brush.SurfaceOverlay}" CornerRadius="10"
             Visibility="Collapsed">
         <StackPanel x:Name="QrGroupsPanel">
