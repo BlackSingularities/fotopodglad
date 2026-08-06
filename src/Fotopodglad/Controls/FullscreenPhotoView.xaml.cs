@@ -50,6 +50,11 @@ public partial class FullscreenPhotoView : UserControl
         var incoming = _showingLayerA ? LayerB : LayerA;
         var outgoing = _showingLayerA ? LayerA : LayerB;
 
+        // Przezroczysta warstwa nadal uczestniczy w hit-testach WPF. Bez jawnego przełączenia
+        // zawsze leżący wyżej LayerB przechwytywał kółko myszy także wtedy, gdy widoczny był LayerA,
+        // więc użytkownik powiększał niewidoczne zdjęcie.
+        incoming.IsHitTestVisible = true;
+        outgoing.IsHitTestVisible = false;
         incoming.Source = source;
         incoming.ResetZoom();
         outgoing.ResetZoom();
