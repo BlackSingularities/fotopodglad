@@ -7,6 +7,18 @@ public sealed class ExifServiceTests
 {
     private readonly ExifService _exifService = new();
 
+    [Theory]
+    [InlineData(1, "M")]
+    [InlineData(2, "P")]
+    [InlineData(3, "A")]
+    [InlineData(4, "S")]
+    [InlineData(7, "P")]
+    [InlineData(0, null)]
+    public void GetExposureProgramLabel_ReturnsPasmLabel(int code, string? expected)
+    {
+        Assert.Equal(expected, ExifService.GetExposureProgramLabel(code));
+    }
+
     [Fact]
     public async Task ExtractAsync_ReturnsPixelDimensions_ForPlainJpegWithoutExif()
     {

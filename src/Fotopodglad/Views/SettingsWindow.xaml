@@ -248,6 +248,10 @@
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
                                 <TextBlock Text="Galeria i podgląd" Style="{StaticResource SectionTitle}"/>
+                                <CheckBox x:Name="ShowPhotoParametersCheckBox"
+                                          Content="Pokazuj nazwę pliku i parametry zdjęcia na podglądzie"
+                                          Foreground="{StaticResource Brush.TextPrimary}"
+                                          FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
