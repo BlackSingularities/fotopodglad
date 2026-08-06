@@ -1,5 +1,6 @@
 using System.Net.NetworkInformation;
 using Fotopodglad.Configuration;
+using Fotopodglad.Models;
 using Windows.Networking.Connectivity;
 using Windows.Networking.NetworkOperators;
 
@@ -17,7 +18,7 @@ namespace Fotopodglad.Services.GuestGallery;
 /// </summary>
 public sealed class WindowsHotspotService : IHotspotService
 {
-    private const int StartAttemptCount = 3;
+    private const int StartAttemptCount = 1;
     private readonly AppSettings _settings;
     private NetworkOperatorTetheringManager? _tetheringManager;
 
@@ -25,6 +26,9 @@ public sealed class WindowsHotspotService : IHotspotService
     public string? Passphrase { get; private set; }
     public string? LocalIpAddress { get; private set; }
     public string? FailureReason { get; private set; }
+    public HotspotFailureKind FailureKind { get; private set; }
+    public bool IsActive => _tetheringManager?.TetheringOperationalState == TetheringOperationalState.On &&
+                            LocalIpAddress is not null;
 
     public WindowsHotspotService(AppSettings settings)
     {
@@ -51,6 +55,7 @@ public sealed class WindowsHotspotService : IHotspotService
         }
 
         FailureReason = null;
+        FailureKind = HotspotFailureKind.None;
         Ssid = forceFreshPassphrase && !string.IsNullOrWhiteSpace(Ssid)
             ? Ssid
             : string.IsNullOrWhiteSpace(_settings.WifiSsid) ? GenerateSsid() : _settings.WifiSsid;
@@ -80,10 +85,22 @@ public sealed class WindowsHotspotService : IHotspotService
     {
         try
         {
-            var profile = NetworkInformation.GetInternetConnectionProfile();
+            var profile = FindTetherableConnectionProfile();
             if (profile is null)
             {
-                FailureReason = "Brak aktywnego połączenia internetowego do udostępnienia.";
+                FailureReason = "Brak aktywnego profilu sieciowego, który Windows może udostępnić.";
+                FailureKind = HotspotFailureKind.Network;
+                return false;
+            }
+
+            var capability = NetworkOperatorTetheringManager.GetTetheringCapabilityFromConnectionProfile(profile);
+            if (capability != TetheringCapability.Enabled)
+            {
+                FailureReason = $"Hotspot niedostępny: {capability}.";
+                FailureKind = capability is TetheringCapability.DisabledByHardwareLimitation or
+                    TetheringCapability.DisabledBySku or TetheringCapability.DisabledByRequiredAppNotInstalled
+                    ? HotspotFailureKind.Unsupported
+                    : HotspotFailureKind.Driver;
                 return false;
             }
 
@@ -109,6 +126,7 @@ public sealed class WindowsHotspotService : IHotspotService
             if (result.Status != TetheringOperationStatus.Success)
             {
                 FailureReason = $"Windows nie uruchomił hotspotu ({result.Status}): {result.AdditionalErrorMessage}";
+                FailureKind = HotspotFailureKind.Driver;
                 _tetheringManager = null;
                 return false;
             }
@@ -119,11 +137,13 @@ public sealed class WindowsHotspotService : IHotspotService
             if (LocalIpAddress is not null)
             {
                 FailureReason = null;
+                FailureKind = HotspotFailureKind.None;
                 return true;
             }
 
             await StopAsync();
             FailureReason = "Hotspot wystartował, ale nie udało się wykryć jego lokalnego adresu IP.";
+            FailureKind = HotspotFailureKind.Network;
             return false;
         }
         catch (OperationCanceledException)
@@ -136,8 +156,36 @@ public sealed class WindowsHotspotService : IHotspotService
             // dla aplikacji niepakietowanej MSIX) traktujemy jako "funkcja niedostępna na tym sprzęcie".
             await StopAsync();
             FailureReason = $"{ex.GetType().Name} (0x{ex.HResult:X8}): {ex.Message}";
+            FailureKind = ex is UnauthorizedAccessException
+                ? HotspotFailureKind.Unsupported
+                : HotspotFailureKind.Driver;
             return false;
         }
+    }
+
+    private static ConnectionProfile? FindTetherableConnectionProfile()
+    {
+        var candidates = new[] { NetworkInformation.GetInternetConnectionProfile() }
+            .Concat(NetworkInformation.GetConnectionProfiles())
+            .Where(profile => profile is not null)
+            .Distinct();
+
+        foreach (var profile in candidates)
+        {
+            try
+            {
+                if (NetworkOperatorTetheringManager.GetTetheringCapabilityFromConnectionProfile(profile) == TetheringCapability.Enabled)
+                {
+                    return profile;
+                }
+            }
+            catch
+            {
+                // Nie każdy profil (VPN, interfejs wirtualny) można przekazać do Mobile Hotspot.
+            }
+        }
+
+        return candidates.FirstOrDefault();
     }
 
     public async Task StopAsync()

@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using Fotopodglad.Models;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using ImageMagick;
 
 namespace Fotopodglad.Services;
 
@@ -67,6 +68,19 @@ public sealed class ExifService : IExifService
         }
 
         (width, height) = ApplyOrientationToDimensions(width, height, orientation);
+
+        if (width <= 0 || height <= 0)
+        {
+            try
+            {
+                var info = new MagickImageInfo(filePath);
+                width = (int)info.Width;
+                height = (int)info.Height;
+            }
+            catch (MagickException)
+            {
+            }
+        }
 
         long fileSize = 0;
         try

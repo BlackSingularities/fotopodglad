@@ -11,18 +11,18 @@
         tekstem, wyłącznie zakodowane w QR "dołącz do WiFi". Widoczny tylko, gdy hotspot faktycznie działa.
     -->
     <Border x:Name="RootBorder" Margin="8,0,8,12" Padding="8"
-            Background="{StaticResource Brush.SurfaceOverlay}" CornerRadius="8"
+            Background="{DynamicResource Brush.SurfaceOverlay}" CornerRadius="8"
             Visibility="Collapsed">
         <StackPanel x:Name="QrGroupsPanel">
             <StackPanel>
                 <TextBlock Text="Dołącz do sieci" Style="{StaticResource Style.ExifText}" FontSize="12"
-                           Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                           Foreground="{DynamicResource Brush.TextSecondary}" Margin="0,0,0,4" HorizontalAlignment="Center"/>
                 <Image x:Name="WifiQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
             </StackPanel>
 
             <StackPanel x:Name="PhotoQrGroup" Margin="0,10,0,0">
                 <TextBlock Text="Pobierz wyświetlane zdjęcie" Style="{StaticResource Style.ExifText}" FontSize="12"
-                           Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                           Foreground="{DynamicResource Brush.TextSecondary}" Margin="0,0,0,4" HorizontalAlignment="Center"/>
                 <Image x:Name="PhotoQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
             </StackPanel>
         </StackPanel>

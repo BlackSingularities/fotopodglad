@@ -1,5 +1,7 @@
 namespace Fotopodglad.Services.GuestGallery;
 
+using Fotopodglad.Models;
+
 public interface IHotspotService
 {
     string? Ssid { get; }
@@ -8,6 +10,8 @@ public interface IHotspotService
     /// <summary>Adres IP komputera w sieci hotspotu (zwykle 192.168.137.1 dla Windows Mobile Hotspot / ICS).</summary>
     string? LocalIpAddress { get; }
     string? FailureReason { get; }
+    HotspotFailureKind FailureKind => HotspotFailureKind.Unknown;
+    bool IsActive => LocalIpAddress is not null;
 
     /// <summary>
     /// Próbuje uruchomić izolowany hotspot z losowym SSID/hasłem. Zwraca false, jeśli sprzęt/sterownik

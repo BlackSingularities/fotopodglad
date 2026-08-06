@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    env:
+      SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+      SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test
+        run: dotnet test Fotopodglad.sln -c Release
+      - name: Publish one-file EXE
+        run: dotnet publish src/Fotopodglad/Fotopodglad.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o release
+      - name: Import code-signing certificate
+        if: ${{ env.SIGNING_CERTIFICATE_BASE64 != '' }}
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ env.SIGNING_CERTIFICATE_BASE64 }}
+          PFX_PASSWORD: ${{ env.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP "fotopodglad-signing.pfx"
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:PFX_BASE64))
+          $certificate = Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
+          "SIGNING_THUMBPRINT=$($certificate.Thumbprint)" | Out-File $env:GITHUB_ENV -Append
+      - name: Sign EXE
+        if: ${{ env.SIGNING_THUMBPRINT != '' }}
+        shell: pwsh
+        run: |
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signTool) { throw "signtool.exe not found" }
+          & $signTool.FullName sign /sha1 $env:SIGNING_THUMBPRINT /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 release/Fotopodglad.exe
+      - name: Generate checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash release/Fotopodglad.exe -Algorithm SHA256).Hash
+          "$hash  Fotopodglad.exe" | Set-Content release/Fotopodglad.exe.sha256
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" release/Fotopodglad.exe release/Fotopodglad.exe.sha256 --title "Fotopodgląd ${{ github.ref_name }}" --generate-notes

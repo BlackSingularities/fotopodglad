@@ -11,6 +11,7 @@ namespace Fotopodglad.Views;
 
 public partial class GridWindow : Window
 {
+    private readonly GuestAccessSidebar _guestSidebar;
     public GridWindow(
         GridWindowViewModel viewModel,
         IThumbnailCache thumbnailCache,
@@ -25,7 +26,22 @@ public partial class GridWindow : Window
         var grid = new MasonryGridControl();
         grid.Initialize(thumbnailCache, viewModel.Photos, settings.GridColumnCount);
         grid.PhotoClicked += photo => viewModel.OnPhotoClicked(photo);
+        grid.PhotoFlagToggled += viewModel.ToggleFlag;
         GridHost.Children.Add(grid);
+        GuestInstructionTextBlock.FontSize = settings.InstructionTextSize * AppearanceService.ScaleFactor(settings);
+        settings.Changed += (_, _) =>
+        {
+            grid.SetColumnCount(settings.GridColumnCount);
+            if (settings.ShowGuestInstructions)
+            {
+                GuestInstructionBorder.ClearValue(VisibilityProperty);
+            }
+            else
+            {
+                GuestInstructionBorder.Visibility = Visibility.Collapsed;
+            }
+            GuestInstructionTextBlock.FontSize = settings.InstructionTextSize * AppearanceService.ScaleFactor(settings);
+        };
 
         GuestInstructionBorder.DataContext = guestAccess;
         if (!settings.ShowGuestInstructions)
@@ -34,19 +50,15 @@ public partial class GridWindow : Window
             GuestInstructionBorder.Visibility = Visibility.Collapsed;
         }
 
-        var guestSidebar = new GuestAccessSidebar(settings, compactLayout: screenService.GetScreens().Count == 1)
+        _guestSidebar = new GuestAccessSidebar(settings, compactLayout: screenService.GetScreens().Count == 1)
         {
             DataContext = guestAccess
         };
-        GuestSidebarHost.Children.Add(guestSidebar);
+        GuestSidebarHost.Children.Add(_guestSidebar);
     }
 
+    public void SetCompactLayout(bool compact) => _guestSidebar.SetCompactLayout(compact);
+
     private async void OnKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        {
-            e.Handled = true;
-            await ((App)Application.Current).OpenSettingsAsync(this);
-        }
-    }
+        => await ((App)Application.Current).HandleShortcutAsync(this, e);
 }

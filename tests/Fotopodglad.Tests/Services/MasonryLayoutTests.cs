@@ -66,4 +66,15 @@ public sealed class MasonryLayoutTests
         Assert.Equal(100, slots[portrait].Height);
         Assert.Equal(200, totalHeight);
     }
+
+    [Fact]
+    public void ComputeLayout_HandlesFifteenThousandPhotos()
+    {
+        var items = Enumerable.Range(1, 15_000).Select(i => MakePhoto(i)).ToArray();
+
+        var (slots, totalHeight) = MasonryLayoutCalculator.ComputeLayout(items, 8, 100);
+
+        Assert.Equal(15_000, slots.Count);
+        Assert.Equal(Math.Ceiling(15_000d / 8) * (100d / 1.5), totalHeight, precision: 5);
+    }
 }

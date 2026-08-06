@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Fotopodglad.Helpers;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
@@ -24,11 +25,13 @@ public partial class MasonryGridControl : UserControl
 
     private readonly Dictionary<PhotoItem, Image> _realizedImages = new();
     private readonly Stack<Image> _imagePool = new();
+    private readonly Dictionary<PhotoItem, CancellationTokenSource> _thumbnailLoads = new();
     private Dictionary<PhotoItem, MasonrySlot> _layout = new();
     private IThumbnailCache? _thumbnailCache;
     private ObservableCollection<PhotoItem>? _itemsSource;
 
     public event Action<PhotoItem>? PhotoClicked;
+    public event Action<PhotoItem>? PhotoFlagToggled;
 
     public MasonryGridControl()
     {
@@ -49,6 +52,18 @@ public partial class MasonryGridControl : UserControl
 
         _itemsSource = itemsSource;
         _itemsSource.CollectionChanged += OnItemsSourceChanged;
+        RecomputeLayout();
+    }
+
+    public void SetColumnCount(int columnCount)
+    {
+        var clamped = Math.Clamp(columnCount, 2, 12);
+        if (_columnCount == clamped)
+        {
+            return;
+        }
+
+        _columnCount = clamped;
         RecomputeLayout();
     }
 
@@ -127,7 +142,17 @@ public partial class MasonryGridControl : UserControl
             DerealizeItem(item);
         }
 
-        foreach (var item in _itemsSource)
+        var tileHeight = ActualWidth / _columnCount / 1.5;
+        var firstRow = Math.Max(0, (int)Math.Floor(rangeTop / tileHeight));
+        var lastRow = Math.Max(firstRow, (int)Math.Ceiling(rangeBottom / tileHeight));
+        var firstIndex = firstRow * _columnCount;
+        var itemCount = Math.Min(_itemsSource.Count - firstIndex, (lastRow - firstRow + 1) * _columnCount);
+        if (itemCount <= 0)
+        {
+            return;
+        }
+
+        foreach (var item in _itemsSource.Skip(firstIndex).Take(itemCount))
         {
             if (_realizedImages.ContainsKey(item))
             {
@@ -160,7 +185,9 @@ public partial class MasonryGridControl : UserControl
         _realizedImages[item] = image;
 
         var decodeWidth = Math.Max(1, (int)(slot.Width * 1.5));
-        _ = LoadThumbnailAsync(item, image, decodeWidth);
+        var cancellation = new CancellationTokenSource();
+        _thumbnailLoads[item] = cancellation;
+        _ = LoadThumbnailAsync(item, image, decodeWidth, cancellation.Token);
     }
 
     private static void ApplySlot(Image image, MasonrySlot slot)
@@ -171,14 +198,22 @@ public partial class MasonryGridControl : UserControl
         image.Height = slot.Height;
     }
 
-    private async Task LoadThumbnailAsync(PhotoItem item, Image target, int decodeWidth)
+    private async Task LoadThumbnailAsync(PhotoItem item, Image target, int decodeWidth, CancellationToken cancellationToken)
     {
         if (_thumbnailCache is null)
         {
             return;
         }
 
-        var bitmap = await _thumbnailCache.GetThumbnailAsync(item.FilePath, decodeWidth);
+        BitmapImage? bitmap;
+        try
+        {
+            bitmap = await _thumbnailCache.GetThumbnailAsync(item.FilePath, decodeWidth, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
         // Kontrolka mogła zostać w międzyczasie zrecyklowana do innego zdjęcia — nie nadpisuj cudzego obrazu.
         if (ReferenceEquals(target.Tag, item) && bitmap is not null)
@@ -192,6 +227,12 @@ public partial class MasonryGridControl : UserControl
         if (!_realizedImages.Remove(item, out var image))
         {
             return;
+        }
+
+        if (_thumbnailLoads.Remove(item, out var cancellation))
+        {
+            cancellation.Cancel();
+            cancellation.Dispose();
         }
 
         image.Tag = null;
@@ -210,6 +251,7 @@ public partial class MasonryGridControl : UserControl
         };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
         image.MouseLeftButtonUp += OnImageClicked;
+        image.MouseRightButtonUp += OnImageRightClicked;
         return image;
     }
 
@@ -218,6 +260,15 @@ public partial class MasonryGridControl : UserControl
         if (sender is Image { Tag: PhotoItem item })
         {
             PhotoClicked?.Invoke(item);
+        }
+    }
+
+    private void OnImageRightClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Image { Tag: PhotoItem item })
+        {
+            PhotoFlagToggled?.Invoke(item);
+            e.Handled = true;
         }
     }
 }

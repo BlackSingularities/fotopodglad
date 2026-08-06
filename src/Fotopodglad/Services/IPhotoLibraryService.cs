@@ -12,6 +12,14 @@ public interface IPhotoLibraryService
 
     /// <summary>Wywoływane na wątku UI, gdy pojawi się nowe najnowsze zdjęcie.</summary>
     event Action<PhotoItem>? NewestChanged;
+    event Action<bool, string?>? FolderAvailabilityChanged
+    {
+        add { }
+        remove { }
+    }
+
+    bool IsFolderAvailable => true;
+    string? FolderAvailabilityMessage => null;
 
     void Start(string folderPath);
     void Stop();

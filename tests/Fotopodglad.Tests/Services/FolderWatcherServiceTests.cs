@@ -71,6 +71,17 @@ public sealed class FolderWatcherServiceTests : IDisposable
         Assert.Same(scanCompleted.Task, completed);
     }
 
+    [Theory]
+    [InlineData(".arw")]
+    [InlineData(".nef")]
+    [InlineData(".cr3")]
+    [InlineData(".heic")]
+    [InlineData(".dng")]
+    public void SupportedExtensions_IncludeRawAndHeic(string extension)
+    {
+        Assert.Contains(extension, FolderWatcherService.SupportedExtensions, StringComparer.OrdinalIgnoreCase);
+    }
+
     public void Dispose()
     {
         _watcher.Dispose();

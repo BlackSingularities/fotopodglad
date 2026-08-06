@@ -12,19 +12,27 @@ public partial class GuestAccessSidebar : UserControl
     public GuestAccessSidebar(AppSettings settings, bool compactLayout = false)
     {
         InitializeComponent();
-        var qrCodeSize = Math.Clamp(settings.QrCodeSize, 96, 320);
+        ApplyQrSize(settings.QrCodeSize);
+        settings.Changed += (_, _) => ApplyQrSize(settings.QrCodeSize);
+
+        SetCompactLayout(compactLayout);
+
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    public void SetCompactLayout(bool compact)
+    {
+        QrGroupsPanel.Orientation = compact ? Orientation.Horizontal : Orientation.Vertical;
+        PhotoQrGroup.Margin = compact ? new Thickness(10, 0, 0, 0) : new Thickness(0, 10, 0, 0);
+    }
+
+    private void ApplyQrSize(int size)
+    {
+        var qrCodeSize = Math.Clamp(size, 96, 320);
         WifiQrImage.Width = qrCodeSize;
         WifiQrImage.Height = qrCodeSize;
         PhotoQrImage.Width = qrCodeSize;
         PhotoQrImage.Height = qrCodeSize;
-
-        if (compactLayout)
-        {
-            QrGroupsPanel.Orientation = Orientation.Horizontal;
-            PhotoQrGroup.Margin = new Thickness(10, 0, 0, 0);
-        }
-
-        DataContextChanged += OnDataContextChanged;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -51,7 +59,7 @@ public partial class GuestAccessSidebar : UserControl
 
     private void Refresh(GuestAccessCoordinator vm)
     {
-        RootBorder.Visibility = vm.Status == GuestAccessStatus.Active ? Visibility.Visible : Visibility.Collapsed;
+        RootBorder.Visibility = vm.WifiQrImage is not null ? Visibility.Visible : Visibility.Collapsed;
         WifiQrImage.Source = vm.WifiQrImage;
         PhotoQrImage.Source = vm.PhotoQrImage;
     }

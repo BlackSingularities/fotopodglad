@@ -27,13 +27,21 @@ public partial class FullscreenPhotoView : UserControl
         if (e.OldValue is FullscreenPhotoViewModel oldVm)
         {
             oldVm.PropertyChanged -= OnViewModelPropertyChanged;
+            oldVm.ZoomResetRequested -= OnZoomResetRequested;
         }
 
         if (e.NewValue is FullscreenPhotoViewModel newVm)
         {
             newVm.PropertyChanged += OnViewModelPropertyChanged;
+            newVm.ZoomResetRequested += OnZoomResetRequested;
             ApplyImage(newVm.CurrentImageSource, animate: false);
         }
+    }
+
+    private void OnZoomResetRequested()
+    {
+        LayerA.ResetZoom();
+        LayerB.ResetZoom();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -42,6 +50,12 @@ public partial class FullscreenPhotoView : UserControl
             DataContext is FullscreenPhotoViewModel vm)
         {
             ApplyImage(vm.CurrentImageSource, animate: true);
+        }
+        else if (e.PropertyName == nameof(FullscreenPhotoViewModel.ClippingOverlaySource) &&
+                 DataContext is FullscreenPhotoViewModel overlayVm)
+        {
+            LayerA.OverlaySource = overlayVm.ClippingOverlaySource;
+            LayerB.OverlaySource = overlayVm.ClippingOverlaySource;
         }
     }
 
@@ -56,6 +70,10 @@ public partial class FullscreenPhotoView : UserControl
         incoming.IsHitTestVisible = true;
         outgoing.IsHitTestVisible = false;
         incoming.Source = source;
+        if (DataContext is FullscreenPhotoViewModel vm)
+        {
+            incoming.OverlaySource = vm.ClippingOverlaySource;
+        }
         incoming.ResetZoom();
         outgoing.ResetZoom();
 

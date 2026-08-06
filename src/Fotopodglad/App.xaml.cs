@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.ComponentModel;
+using System.Net.Http;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using Fotopodglad.Configuration;
 using Fotopodglad.Helpers;
@@ -22,6 +24,11 @@ public partial class App : Application
     private bool _settingsDialogOpen;
     private bool _shutdownInProgress;
     private bool _synchronizingWindowState;
+    private AppSettings? _settings;
+    private MainViewWindow? _mainViewWindow;
+    private GridWindow? _gridWindow;
+    private int _lastScreenCount;
+    private bool _forcedSingleScreenLayout;
 
     public static ServiceProvider Services { get; private set; } = null!;
 
@@ -34,6 +41,8 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         var settings = AppSettings.Load();
+        _settings = settings;
+        AppearanceService.Apply(settings);
         var isRestart = e.Args.Any(arg => string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase));
         var folderPath = isRestart && settings.WatchedFolderPath is { } savedFolder && Directory.Exists(savedFolder)
             ? savedFolder
@@ -49,6 +58,7 @@ public partial class App : Application
         // Lista ekranów potrzebna już tutaj (przed zbudowaniem kontenera DI), żeby okno ustawień
         // mogło zaoferować wybór konkretnego monitora dla każdego z dwóch okien aplikacji.
         var screens = new ScreenService().GetScreens();
+        _lastScreenCount = screens.Count;
 
         var wantsToChangeSettings = !isRestart && PromptToChangeSettings();
 
@@ -91,25 +101,9 @@ public partial class App : Application
         var screenA = screens[mainViewScreenIndex];
         var screenB = screens[gridScreenIndex];
 
-        var mainViewWindow = _services.GetRequiredService<MainViewWindow>();
-        var gridWindow = _services.GetRequiredService<GridWindow>();
-
-        if (screens.Count == 1)
-        {
-            var previewHeight = (int)Math.Round(screenA.Height * 0.6);
-            ConfigureWindowBounds(mainViewWindow, screenA.Left, screenA.Top, screenA.Width, previewHeight);
-            ConfigureWindowBounds(
-                gridWindow,
-                screenA.Left,
-                screenA.Top + previewHeight,
-                screenA.Width,
-                screenA.Height - previewHeight);
-        }
-        else
-        {
-            ConfigureFullscreenWindow(mainViewWindow, screenA);
-            ConfigureFullscreenWindow(gridWindow, screenB);
-        }
+        var mainViewWindow = _mainViewWindow = _services.GetRequiredService<MainViewWindow>();
+        var gridWindow = _gridWindow = _services.GetRequiredService<GridWindow>();
+        ConfigureInitialLayout(mainViewWindow, gridWindow, settings, screenA, screenB, screens.Count);
 
         mainViewWindow.Closing += OnApplicationWindowClosing;
         gridWindow.Closing += OnApplicationWindowClosing;
@@ -118,6 +112,17 @@ public partial class App : Application
 
         mainViewWindow.Show();
         gridWindow.Show();
+        LocalizationService.Apply(mainViewWindow, settings);
+        LocalizationService.Apply(gridWindow, settings);
+        AppearanceService.ApplyScale(settings);
+
+        if (settings.CheckForUpdates &&
+            (settings.LastUpdateCheckUtc is null || DateTime.UtcNow - settings.LastUpdateCheckUtc > TimeSpan.FromHours(24)))
+        {
+            _ = CheckForUpdatesInBackgroundAsync(mainViewWindow);
+        }
+
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
         ShutdownMode = ShutdownMode.OnLastWindowClose;
     }
@@ -133,8 +138,13 @@ public partial class App : Application
         try
         {
             var settings = _services.GetRequiredService<AppSettings>();
+            var before = settings.Clone();
             var screens = _services.GetRequiredService<IScreenService>().GetScreens();
-            var settingsWindow = new SettingsWindow(settings, screens)
+            var settingsWindow = new SettingsWindow(
+                settings,
+                screens,
+                _services.GetService<GuestAccessCoordinator>(),
+                _services.GetService<UpdateCheckService>())
             {
                 Owner = owner,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner
@@ -146,7 +156,18 @@ public partial class App : Application
             }
 
             settings.Save();
-            await RestartAsync(owner);
+            if (AppSettings.RequiresRestart(before, settings))
+            {
+                await RestartAsync(owner);
+            }
+            else
+            {
+                AppearanceService.Apply(settings);
+                settings.NotifyChanged();
+                ApplyCurrentWindowMode();
+                if (_mainViewWindow is not null) LocalizationService.Apply(_mainViewWindow, settings);
+                if (_gridWindow is not null) LocalizationService.Apply(_gridWindow, settings);
+            }
         }
         finally
         {
@@ -241,8 +262,255 @@ public partial class App : Application
         }
     }
 
+    private async Task CheckForUpdatesInBackgroundAsync(Window owner)
+    {
+        if (_services is null || _settings is null) return;
+        try
+        {
+            var result = await _services.GetRequiredService<UpdateCheckService>().CheckAsync();
+            _settings.LastUpdateCheckUtc = DateTime.UtcNow;
+            _settings.Save();
+            if (result.IsUpdateAvailable)
+            {
+                var answer = MessageBox.Show(owner,
+                    $"Dostępna jest nowa wersja Fotopodglądu: {result.LatestVersion}. Otworzyć stronę pobierania?",
+                    "Aktualizacja Fotopodglądu", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (answer == MessageBoxResult.Yes)
+                {
+                    Process.Start(new ProcessStartInfo(result.DownloadUrl) { UseShellExecute = true });
+                }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            // Kontrola aktualizacji nie może blokować pracy offline.
+        }
+    }
+
+    public async Task HandleShortcutAsync(Window owner, KeyEventArgs e)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var preview = _services.GetRequiredService<FullscreenPhotoViewModel>();
+        if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+            await OpenSettingsAsync(owner);
+        }
+        else if (e.Key == Key.M && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+            SetMainWindowsState(WindowState.Minimized);
+        }
+        else if (e.Key == Key.Home)
+        {
+            e.Handled = true;
+            preview.ShowLatestAutomatically();
+        }
+        else if (e.Key == Key.Left)
+        {
+            e.Handled = true;
+            preview.ShowPrevious();
+        }
+        else if (e.Key == Key.Right)
+        {
+            e.Handled = true;
+            preview.ShowNext();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            preview.ResetZoom();
+        }
+        else if (e.Key == Key.F11 && _settings is not null)
+        {
+            e.Handled = true;
+            if (_settings.WindowMode == WindowPresentationMode.Windowed)
+            {
+                SaveWindowPlacements();
+            }
+
+            _settings.WindowMode = _settings.WindowMode == WindowPresentationMode.Fullscreen
+                ? WindowPresentationMode.Windowed
+                : WindowPresentationMode.Fullscreen;
+            _settings.Save();
+            ApplyCurrentWindowMode();
+        }
+    }
+
+    private void SetMainWindowsState(WindowState state)
+    {
+        foreach (var window in Windows.OfType<Window>().Where(window => window is MainViewWindow or GridWindow))
+        {
+            window.WindowState = state;
+        }
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        if (_services is null) return;
+        var currentCount = _services.GetRequiredService<IScreenService>().GetScreens().Count;
+        if (currentCount < _lastScreenCount && currentCount == 1 && _settings is not null)
+        {
+            _settings.MainViewScreenIndex = 0;
+            _settings.GridScreenIndex = 0;
+            _forcedSingleScreenLayout = true;
+        }
+        else if (currentCount > 1) _forcedSingleScreenLayout = false;
+        _lastScreenCount = currentCount;
+        ApplyCurrentWindowMode();
+    });
+
+    private void ApplyCurrentWindowMode()
+    {
+        if (_settings is null || _mainViewWindow is null || _gridWindow is null || _services is null)
+        {
+            return;
+        }
+
+        var screens = _services.GetRequiredService<IScreenService>().GetScreens();
+        if (screens.Count == 0)
+        {
+            return;
+        }
+        _gridWindow.SetCompactLayout(screens.Count == 1);
+
+        if (_settings.WindowMode == WindowPresentationMode.Windowed && !_forcedSingleScreenLayout)
+        {
+            ApplyWindowedPlacement(_mainViewWindow, _settings.MainWindowPlacement, 80, 80);
+            ApplyWindowedPlacement(_gridWindow, _settings.GridWindowPlacement, 160, 140);
+            return;
+        }
+
+        var mainIndex = Math.Clamp(_settings.MainViewScreenIndex, 0, screens.Count - 1);
+        var gridIndex = Math.Clamp(_settings.GridScreenIndex, 0, screens.Count - 1);
+        if (screens.Count > 1 && gridIndex == mainIndex)
+        {
+            gridIndex = (mainIndex + 1) % screens.Count;
+        }
+
+        ApplyFullscreenLayout(_mainViewWindow, _gridWindow, screens[mainIndex], screens[gridIndex], screens.Count);
+    }
+
+    private static void ConfigureInitialLayout(
+        Window mainWindow,
+        Window gridWindow,
+        AppSettings settings,
+        ScreenInfo mainScreen,
+        ScreenInfo gridScreen,
+        int screenCount)
+    {
+        if (settings.WindowMode == WindowPresentationMode.Windowed)
+        {
+            ConfigureInitialWindowed(mainWindow, settings.MainWindowPlacement, 80, 80);
+            ConfigureInitialWindowed(gridWindow, settings.GridWindowPlacement, 160, 140);
+            return;
+        }
+
+        if (screenCount == 1)
+        {
+            var previewHeight = (int)Math.Round(mainScreen.Height * 0.6);
+            ConfigureWindowBounds(mainWindow, mainScreen.Left, mainScreen.Top, mainScreen.Width, previewHeight);
+            ConfigureWindowBounds(gridWindow, mainScreen.Left, mainScreen.Top + previewHeight, mainScreen.Width, mainScreen.Height - previewHeight);
+        }
+        else
+        {
+            ConfigureFullscreenWindow(mainWindow, mainScreen);
+            ConfigureFullscreenWindow(gridWindow, gridScreen);
+        }
+    }
+
+    private static void ConfigureInitialWindowed(Window window, SavedWindowPlacement placement, double fallbackLeft, double fallbackTop)
+    {
+        window.WindowStyle = WindowStyle.SingleBorderWindow;
+        window.ResizeMode = ResizeMode.CanResize;
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = placement.IsValid ? placement.Left : fallbackLeft;
+        window.Top = placement.IsValid ? placement.Top : fallbackTop;
+        window.Width = placement.IsValid ? Math.Max(480, placement.Width) : 1100;
+        window.Height = placement.IsValid ? Math.Max(320, placement.Height) : 700;
+        window.Topmost = false;
+    }
+
+    private static void ApplyWindowedPlacement(Window window, SavedWindowPlacement placement, double fallbackLeft, double fallbackTop)
+    {
+        window.WindowState = WindowState.Normal;
+        window.WindowStyle = WindowStyle.SingleBorderWindow;
+        window.ResizeMode = ResizeMode.CanResize;
+        window.Left = placement.IsValid ? placement.Left : fallbackLeft;
+        window.Top = placement.IsValid ? placement.Top : fallbackTop;
+        window.Width = placement.IsValid ? Math.Max(480, placement.Width) : 1100;
+        window.Height = placement.IsValid ? Math.Max(320, placement.Height) : 700;
+    }
+
+    private static void ApplyFullscreenLayout(Window mainWindow, Window gridWindow, ScreenInfo mainScreen, ScreenInfo gridScreen, int screenCount)
+    {
+        mainWindow.WindowState = WindowState.Normal;
+        gridWindow.WindowState = WindowState.Normal;
+        mainWindow.WindowStyle = WindowStyle.None;
+        gridWindow.WindowStyle = WindowStyle.None;
+        mainWindow.ResizeMode = ResizeMode.CanMinimize;
+        gridWindow.ResizeMode = ResizeMode.CanMinimize;
+
+        if (screenCount == 1)
+        {
+            var previewHeight = (int)Math.Round(mainScreen.Height * 0.6);
+            SetWindowBoundsNow(mainWindow, mainScreen.Left, mainScreen.Top, mainScreen.Width, previewHeight);
+            SetWindowBoundsNow(gridWindow, mainScreen.Left, mainScreen.Top + previewHeight, mainScreen.Width, mainScreen.Height - previewHeight);
+        }
+        else
+        {
+            SetWindowBoundsNow(mainWindow, mainScreen.Left, mainScreen.Top, mainScreen.Width, mainScreen.Height);
+            SetWindowBoundsNow(gridWindow, gridScreen.Left, gridScreen.Top, gridScreen.Width, gridScreen.Height);
+        }
+    }
+
+    private static void SetWindowBoundsNow(Window window, int left, int top, int width, int height)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            Win32Interop.SetWindowBounds(hwnd, left, top, width, height);
+        }
+    }
+
+    private void SaveWindowPlacements()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        SaveWindowPlacement(_mainViewWindow, _settings.MainWindowPlacement);
+        SaveWindowPlacement(_gridWindow, _settings.GridWindowPlacement);
+        _settings.Save();
+    }
+
+    private static void SaveWindowPlacement(Window? window, SavedWindowPlacement placement)
+    {
+        if (window is null || window.WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        var bounds = window.RestoreBounds;
+        placement.Left = bounds.Left;
+        placement.Top = bounds.Top;
+        placement.Width = bounds.Width;
+        placement.Height = bounds.Height;
+        placement.IsValid = bounds.Width >= 480 && bounds.Height >= 320;
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        if (_settings?.WindowMode == WindowPresentationMode.Windowed)
+        {
+            SaveWindowPlacements();
+        }
         _services?.GetService<IPhotoLibraryService>()?.Stop();
         _services?.Dispose();
         base.OnExit(e);
@@ -334,6 +602,7 @@ public partial class App : Application
         services.AddSingleton<IHotspotService, WindowsHotspotService>();
         services.AddSingleton<GuestGalleryHttpServer>();
         services.AddSingleton<GuestAccessCoordinator>();
+        services.AddSingleton<UpdateCheckService>();
 
         // Jedna instancja jest źródłem prawdy dla Okna A, kliknięć z siatki i kodu QR zdjęcia.
         services.AddSingleton<FullscreenPhotoViewModel>();

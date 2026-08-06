@@ -7,7 +7,7 @@
         ResizeMode="CanMinimize"
         WindowStartupLocation="Manual"
         KeyDown="OnKeyDown"
-        Background="{StaticResource Brush.Background}">
+        Background="{DynamicResource Brush.Background}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -22,9 +22,25 @@
 
         <Grid x:Name="GridHost" Grid.Row="0" Grid.Column="0"/>
 
+        <Border Grid.Row="0" Grid.Column="0" VerticalAlignment="Top" HorizontalAlignment="Center"
+                Margin="24" Padding="16,10" CornerRadius="8" Background="#E0A52A2A">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFolderAvailable}" Value="False">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding FolderAvailabilityMessage}" Foreground="White" FontSize="14"
+                       FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center"/>
+        </Border>
+
         <TextBlock Grid.Row="0" Grid.Column="0" Text="Oczekiwanie na zdjęcia…"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="24" Foreground="{StaticResource Brush.TextSecondary}"
+                   FontSize="24" Foreground="{DynamicResource Brush.TextSecondary}"
                    IsHitTestVisible="False">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
@@ -40,7 +56,7 @@
 
         <Border x:Name="GuestInstructionBorder" Grid.Row="1" Grid.Column="0"
                 Margin="20,8,20,14" Padding="14,9"
-                Background="{StaticResource Brush.SurfaceOverlay}" CornerRadius="8"
+                Background="{DynamicResource Brush.SurfaceOverlay}" CornerRadius="8"
                 Opacity="0.82" IsHitTestVisible="False">
             <Border.Style>
                 <Style TargetType="Border">
@@ -52,8 +68,8 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
-                       FontSize="11" Foreground="{StaticResource Brush.TextSecondary}">
+            <TextBlock x:Name="GuestInstructionTextBlock" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}">
                 <Run Text="1. Zeskanuj „Dołącz do sieci”" FontWeight="SemiBold"/>
                 <Run Text="  •  2. Kliknij zdjęcie, które chcesz pobrać"/>
                 <Run Text="  •  3. Zeskanuj „Pobierz wyświetlane zdjęcie” — możesz zapisać je na telefonie"/>

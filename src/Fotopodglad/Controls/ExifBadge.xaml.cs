@@ -6,6 +6,17 @@ namespace Fotopodglad.Controls;
 
 public partial class ExifBadge : UserControl
 {
+    public static readonly DependencyProperty TextSizeProperty = DependencyProperty.Register(
+        nameof(TextSize), typeof(double), typeof(ExifBadge), new PropertyMetadata(15d, OnTextSizeChanged));
+
+    public double TextSize
+    {
+        get => (double)GetValue(TextSizeProperty);
+        set => SetValue(TextSizeProperty, value);
+    }
+
+    private static void OnTextSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((ExifBadge)d).TextBlockValue.FontSize = (double)e.NewValue;
     public static readonly DependencyProperty IconResourceKeyProperty = DependencyProperty.Register(
         nameof(IconResourceKey), typeof(string), typeof(ExifBadge),
         new PropertyMetadata(null, OnIconResourceKeyChanged));

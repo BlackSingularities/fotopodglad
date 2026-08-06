@@ -15,11 +15,5 @@ public partial class MainViewWindow : Window
     }
 
     private async void OnKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        {
-            e.Handled = true;
-            await ((App)Application.Current).OpenSettingsAsync(this);
-        }
-    }
+        => await ((App)Application.Current).HandleShortcutAsync(this, e);
 }

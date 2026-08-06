@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.Windows.Threading;
+using Fotopodglad.Helpers;
+using Fotopodglad.Configuration;
 using Fotopodglad.Models;
 
 namespace Fotopodglad.Services;
@@ -20,32 +23,41 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     private readonly IFolderWatcherService _watcher;
     private readonly IExifService _exifService;
     private readonly Dispatcher _dispatcher;
+    private readonly AppSettings _settings;
     private readonly HashSet<string> _loadedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentBag<PhotoItem> _backlogItems = [];
+    private readonly SemaphoreSlim _metadataSlots = new(Math.Clamp(Environment.ProcessorCount, 2, 8));
     private long _sequenceCounter;
 
     private int _pendingBacklogCount;
     private int _initialScanCompleted;
     private int _finalLatestAnnounced;
 
-    public ObservableCollection<PhotoItem> Photos { get; } = new();
+    public ObservableCollection<PhotoItem> Photos { get; } = new BulkObservableCollection<PhotoItem>();
 
     public PhotoItem? Latest => Photos.Count > 0 ? Photos[0] : null;
 
     public event Action<PhotoItem>? NewestChanged;
+    public event Action<bool, string?>? FolderAvailabilityChanged;
+    public bool IsFolderAvailable => _watcher.IsAvailable;
+    public string? FolderAvailabilityMessage => _watcher.AvailabilityMessage;
 
-    public PhotoLibraryService(IFolderWatcherService watcher, IExifService exifService)
+    public PhotoLibraryService(IFolderWatcherService watcher, IExifService exifService, AppSettings settings)
     {
         _watcher = watcher;
         _exifService = exifService;
+        _settings = settings;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _watcher.PhotoReady += OnPhotoReady;
         _watcher.InitialScanCompleted += OnInitialScanCompleted;
+        _watcher.AvailabilityChanged += OnAvailabilityChanged;
     }
 
     public void Start(string folderPath)
     {
         Photos.Clear();
         _loadedPaths.Clear();
+        while (_backlogItems.TryTake(out _)) { }
         _sequenceCounter = 0;
         _pendingBacklogCount = 0;
         _initialScanCompleted = 0;
@@ -54,6 +66,9 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     }
 
     public void Stop() => _watcher.Stop();
+
+    private void OnAvailabilityChanged(bool available, string? message) =>
+        _ = _dispatcher.InvokeAsync(() => FolderAvailabilityChanged?.Invoke(available, message));
 
     private void OnPhotoReady(string filePath, bool isBacklog)
     {
@@ -70,6 +85,7 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     {
         try
         {
+            await _metadataSlots.WaitAsync();
             ExifData exif;
             try
             {
@@ -100,13 +116,25 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
                 Exif = exif,
                 // Dla zdjęć bez EXIF czas modyfikacji daje prawidłową kolejność także podczas skanu startowego.
                 DiscoveredAtUtc = discoveredAtUtc,
-                SequenceId = Interlocked.Increment(ref _sequenceCounter)
+                SequenceId = Interlocked.Increment(ref _sequenceCounter),
+                IsFlagged = _settings.FlaggedPhotoPaths.Contains(filePath, StringComparer.OrdinalIgnoreCase)
             };
 
-            await _dispatcher.InvokeAsync(() => InsertPhoto(item, isBacklog));
+            if (isBacklog)
+            {
+                _backlogItems.Add(item);
+            }
+            else
+            {
+                await _dispatcher.InvokeAsync(() => InsertLivePhoto(item));
+            }
         }
         finally
         {
+            if (_metadataSlots.CurrentCount < Math.Clamp(Environment.ProcessorCount, 2, 8))
+            {
+                _metadataSlots.Release();
+            }
             if (isBacklog && Interlocked.Decrement(ref _pendingBacklogCount) == 0)
             {
                 TryAnnounceLatestAfterBacklog();
@@ -137,6 +165,7 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
 
         _ = _dispatcher.InvokeAsync(() =>
         {
+            MergeBacklog();
             if (Latest is { } latest)
             {
                 NewestChanged?.Invoke(latest);
@@ -144,7 +173,30 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         });
     }
 
-    private void InsertPhoto(PhotoItem item, bool isBacklog)
+    private void MergeBacklog()
+    {
+        if (Photos is not BulkObservableCollection<PhotoItem> bulk)
+        {
+            return;
+        }
+
+        var combined = Photos.Concat(_backlogItems)
+            .GroupBy(photo => photo.FilePath, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+        combined.Sort(ComparePhotos);
+
+        _loadedPaths.Clear();
+        foreach (var photo in combined)
+        {
+            _loadedPaths.Add(photo.FilePath);
+        }
+
+        bulk.ReplaceAll(combined);
+        while (_backlogItems.TryTake(out _)) { }
+    }
+
+    private void InsertLivePhoto(PhotoItem item)
     {
         if (!_loadedPaths.Add(item.FilePath))
         {
@@ -152,19 +204,25 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
         }
 
         // Sortowanie: najpierw po dacie wykonania (EXIF), a przy braku/remisie po kolejności wykrycia (SequenceId).
-        var insertIndex = 0;
-        for (; insertIndex < Photos.Count; insertIndex++)
+        var low = 0;
+        var high = Photos.Count;
+        while (low < high)
         {
-            if (ComparePhotos(item, Photos[insertIndex]) < 0)
+            var middle = low + (high - low) / 2;
+            if (ComparePhotos(item, Photos[middle]) < 0)
             {
-                break;
+                high = middle;
+            }
+            else
+            {
+                low = middle + 1;
             }
         }
 
+        var insertIndex = low;
         Photos.Insert(insertIndex, item);
 
-        // Zaległości startowe nigdy nie wywołują NewestChanged pojedynczo — patrz TryAnnounceLatestAfterBacklog.
-        if (insertIndex == 0 && !isBacklog)
+        if (insertIndex == 0)
         {
             NewestChanged?.Invoke(item);
         }
