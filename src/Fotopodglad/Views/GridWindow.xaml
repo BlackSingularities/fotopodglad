@@ -7,12 +7,29 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
+        KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
     <Grid>
         <Grid x:Name="GridHost"/>
+
+        <TextBlock Text="Oczekiwanie na zdjęcia…"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="24" Foreground="{StaticResource Brush.TextSecondary}"
+                   IsHitTestVisible="False">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Photos.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
 
         <controls:FullscreenPhotoView DataContext="{Binding Overlay}"
                                        Visibility="{Binding IsOverlayVisible, Converter={StaticResource BoolToVisibility}}"

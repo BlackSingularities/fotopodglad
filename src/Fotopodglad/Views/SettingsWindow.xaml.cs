@@ -45,6 +45,21 @@ public partial class SettingsWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
+        var wifiSsid = WifiSsidTextBox.Text.Trim();
+        var wifiPassphrase = WifiPasswordTextBox.Text.Trim();
+
+        if (wifiSsid.Length > 32)
+        {
+            MessageBox.Show(this, "Nazwa sieci WiFi może mieć maksymalnie 32 znaki.", "Nieprawidłowa wartość", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (wifiPassphrase.Length is > 0 and (< 8 or > 63))
+        {
+            MessageBox.Show(this, "Hasło WiFi musi mieć od 8 do 63 znaków albo pozostać puste (wtedy zostanie wygenerowane).", "Nieprawidłowa wartość", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         if (!int.TryParse(GridColumnsTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var columns) || columns is < 2 or > 12)
         {
             MessageBox.Show(this, "Liczba kolumn siatki musi być liczbą całkowitą od 2 do 12.", "Nieprawidłowa wartość", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -57,8 +72,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _settings.WifiSsid = string.IsNullOrWhiteSpace(WifiSsidTextBox.Text) ? null : WifiSsidTextBox.Text.Trim();
-        _settings.WifiPassphrase = string.IsNullOrWhiteSpace(WifiPasswordTextBox.Text) ? null : WifiPasswordTextBox.Text.Trim();
+        _settings.WifiSsid = string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid;
+        _settings.WifiPassphrase = string.IsNullOrWhiteSpace(wifiPassphrase) ? null : wifiPassphrase;
         _settings.GridColumnCount = columns;
         _settings.ManualHoldSeconds = holdSeconds;
         _settings.MainViewScreenIndex = MainViewScreenComboBox.SelectedIndex;

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using Fotopodglad.Configuration;
 using Fotopodglad.Controls;
 using Fotopodglad.Services;
@@ -24,5 +25,14 @@ public partial class GridWindow : Window
 
         var guestSidebar = new GuestAccessSidebar { DataContext = guestAccess };
         GuestSidebarHost.Children.Add(guestSidebar);
+    }
+
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _viewModel.IsOverlayVisible)
+        {
+            _viewModel.CloseOverlay();
+            e.Handled = true;
+        }
     }
 }
