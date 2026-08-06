@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\FotopodgladLogo.png" />
+    <Resource Include="Assets\Icons\*.png" />
   </ItemGroup>
 
   <ItemGroup>

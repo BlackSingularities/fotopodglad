@@ -21,7 +21,7 @@ public partial class GuestAccessSidebar : UserControl
         if (compactLayout)
         {
             QrGroupsPanel.Orientation = Orientation.Horizontal;
-            PhotoQrGroup.Margin = new Thickness(18, 0, 0, 0);
+            PhotoQrGroup.Margin = new Thickness(10, 0, 0, 0);
         }
 
         DataContextChanged += OnDataContextChanged;
