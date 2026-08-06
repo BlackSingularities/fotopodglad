@@ -10,7 +10,7 @@ namespace Fotopodglad.Tests.ViewModels;
 public sealed class GridWindowViewModelTests
 {
     [Fact]
-    public void CloseOverlay_RestoresGridAndAutomaticPreviewMode()
+    public void PhotoClick_OpensSelectedPhotoInMainPreview()
     {
         var library = new FakePhotoLibrary();
         var photo = new PhotoItem
@@ -23,16 +23,14 @@ public sealed class GridWindowViewModelTests
         };
         library.Photos.Add(photo);
 
-        var overlay = new FullscreenPhotoViewModel(library, new AppSettings());
-        var viewModel = new GridWindowViewModel(library, overlay);
+        var preview = new FullscreenPhotoViewModel(library, new AppSettings());
+        var mainView = new MainViewWindowViewModel(preview);
+        var viewModel = new GridWindowViewModel(library, mainView);
 
         viewModel.OnPhotoClicked(photo);
-        Assert.True(viewModel.IsOverlayVisible);
-        Assert.Equal(PreviewMode.Manual, overlay.Mode);
 
-        viewModel.CloseOverlay();
-        Assert.False(viewModel.IsOverlayVisible);
-        Assert.Equal(PreviewMode.Auto, overlay.Mode);
+        Assert.Same(photo, mainView.Preview.CurrentPhoto);
+        Assert.Equal(PreviewMode.Manual, mainView.Preview.Mode);
     }
 
     private sealed class FakePhotoLibrary : IPhotoLibraryService

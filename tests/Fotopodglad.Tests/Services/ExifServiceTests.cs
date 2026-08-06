@@ -57,4 +57,16 @@ public sealed class ExifServiceTests
         Assert.NotNull(actual);
         Assert.Equal(expected, actual.Value, precision: 6);
     }
+
+    [Theory]
+    [InlineData(1, 6000, 4000)]
+    [InlineData(3, 6000, 4000)]
+    [InlineData(6, 4000, 6000)]
+    [InlineData(8, 4000, 6000)]
+    public void ApplyOrientationToDimensions_UsesDisplayedOrientation(int orientation, int expectedWidth, int expectedHeight)
+    {
+        var actual = ExifService.ApplyOrientationToDimensions(6000, 4000, orientation);
+
+        Assert.Equal((expectedWidth, expectedHeight), actual);
+    }
 }

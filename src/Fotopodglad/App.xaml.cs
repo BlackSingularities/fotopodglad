@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
@@ -17,6 +19,8 @@ namespace Fotopodglad;
 public partial class App : Application
 {
     private ServiceProvider? _services;
+    private bool _settingsDialogOpen;
+    private bool _shutdownInProgress;
 
     public static ServiceProvider Services { get; private set; } = null!;
 
@@ -29,7 +33,10 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         var settings = AppSettings.Load();
-        var folderPath = PromptForFolder(settings);
+        var isRestart = e.Args.Any(arg => string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase));
+        var folderPath = isRestart && settings.WatchedFolderPath is { } savedFolder && Directory.Exists(savedFolder)
+            ? savedFolder
+            : PromptForFolder(settings);
         if (folderPath is null)
         {
             Shutdown();
@@ -42,7 +49,7 @@ public partial class App : Application
         // mogło zaoferować wybór konkretnego monitora dla każdego z dwóch okien aplikacji.
         var screens = new ScreenService().GetScreens();
 
-        var wantsToChangeSettings = PromptToChangeSettings();
+        var wantsToChangeSettings = !isRestart && PromptToChangeSettings();
 
         if (wantsToChangeSettings)
         {
@@ -78,15 +85,126 @@ public partial class App : Application
         var screenB = screens[gridScreenIndex];
 
         var mainViewWindow = _services.GetRequiredService<MainViewWindow>();
-        ConfigureFullscreenWindow(mainViewWindow, screenA);
-
         var gridWindow = _services.GetRequiredService<GridWindow>();
-        ConfigureFullscreenWindow(gridWindow, screenB);
+
+        if (screens.Count == 1)
+        {
+            var previewHeight = (int)Math.Round(screenA.Height * 0.6);
+            ConfigureWindowBounds(mainViewWindow, screenA.Left, screenA.Top, screenA.Width, previewHeight);
+            ConfigureWindowBounds(
+                gridWindow,
+                screenA.Left,
+                screenA.Top + previewHeight,
+                screenA.Width,
+                screenA.Height - previewHeight);
+        }
+        else
+        {
+            ConfigureFullscreenWindow(mainViewWindow, screenA);
+            ConfigureFullscreenWindow(gridWindow, screenB);
+        }
+
+        mainViewWindow.Closing += OnApplicationWindowClosing;
+        gridWindow.Closing += OnApplicationWindowClosing;
 
         mainViewWindow.Show();
         gridWindow.Show();
 
         ShutdownMode = ShutdownMode.OnLastWindowClose;
+    }
+
+    public async Task OpenSettingsAsync(Window owner)
+    {
+        if (_settingsDialogOpen || _services is null)
+        {
+            return;
+        }
+
+        _settingsDialogOpen = true;
+        try
+        {
+            var settings = _services.GetRequiredService<AppSettings>();
+            var screens = _services.GetRequiredService<IScreenService>().GetScreens();
+            var settingsWindow = new SettingsWindow(settings, screens)
+            {
+                Owner = owner,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+
+            if (settingsWindow.ShowDialog() != true)
+            {
+                return;
+            }
+
+            settings.Save();
+            await RestartAsync(owner);
+        }
+        finally
+        {
+            _settingsDialogOpen = false;
+        }
+    }
+
+    private async Task RestartAsync(Window owner)
+    {
+        var executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            MessageBox.Show(owner, "Nie udało się ustalić ścieżki aplikacji. Uruchom ją ponownie ręcznie, aby zastosować ustawienia.",
+                "Wymagane ponowne uruchomienie", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            if (_services?.GetService<GuestAccessCoordinator>() is { } guestAccess)
+            {
+                await guestAccess.StopAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            }
+
+            var startInfo = new ProcessStartInfo(executablePath) { UseShellExecute = true };
+            startInfo.ArgumentList.Add("--restart");
+            Process.Start(startInfo);
+            _shutdownInProgress = true;
+            Shutdown();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or TimeoutException)
+        {
+            MessageBox.Show(owner, "Ustawienia zapisano, ale nie udało się automatycznie uruchomić aplikacji ponownie. Uruchom ją ręcznie.",
+                "Nie udało się uruchomić ponownie", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void OnApplicationWindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (_shutdownInProgress)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        _shutdownInProgress = true;
+
+        try
+        {
+            if (_services?.GetService<GuestAccessCoordinator>() is { } guestAccess)
+            {
+                await guestAccess.StopAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            }
+        }
+        catch (TimeoutException)
+        {
+            // Nie blokujemy zamknięcia aplikacji bez końca, jeśli sterownik WiFi nie odpowiada.
+        }
+        finally
+        {
+            foreach (Window window in Windows.Cast<Window>().ToArray())
+            {
+                window.Close();
+            }
+
+            Shutdown();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -169,11 +287,10 @@ public partial class App : Application
         services.AddSingleton<GuestGalleryHttpServer>();
         services.AddSingleton<GuestAccessCoordinator>();
 
-        // FullscreenPhotoViewModel jest transient: Okno A i overlay Okna B potrzebują NIEZALEŻNYCH
-        // instancji (Okno A zawsze Auto, overlay Okna B może być chwilowo w trybie Manual).
-        services.AddTransient<FullscreenPhotoViewModel>();
+        // Jedna instancja jest źródłem prawdy dla Okna A, kliknięć z siatki i kodu QR zdjęcia.
+        services.AddSingleton<FullscreenPhotoViewModel>();
 
-        services.AddTransient<MainViewWindowViewModel>();
+        services.AddSingleton<MainViewWindowViewModel>();
         services.AddTransient<GridWindowViewModel>();
 
         services.AddTransient<MainViewWindow>();
@@ -188,6 +305,9 @@ public partial class App : Application
     /// zanim okno faktycznie się pokaże — bez migotania.
     /// </summary>
     private static void ConfigureFullscreenWindow(Window window, ScreenInfo screen)
+        => ConfigureWindowBounds(window, screen.Left, screen.Top, screen.Width, screen.Height);
+
+    private static void ConfigureWindowBounds(Window window, int left, int top, int width, int height)
     {
         window.WindowStyle = WindowStyle.None;
         window.ResizeMode = ResizeMode.NoResize;
@@ -197,7 +317,7 @@ public partial class App : Application
         window.SourceInitialized += (_, _) =>
         {
             var hwnd = new WindowInteropHelper(window).Handle;
-            Win32Interop.SetWindowBounds(hwnd, screen.Left, screen.Top, screen.Width, screen.Height);
+            Win32Interop.SetWindowBounds(hwnd, left, top, width, height);
         };
     }
 }

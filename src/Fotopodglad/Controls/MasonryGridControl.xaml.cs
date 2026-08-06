@@ -191,6 +191,7 @@ public partial class MasonryGridControl : UserControl
         var image = new Image
         {
             Stretch = Stretch.UniformToFill,
+            ClipToBounds = true,
             SnapsToDevicePixels = true
         };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);

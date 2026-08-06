@@ -1,17 +1,12 @@
 <Window x:Class="Fotopodglad.Views.GridWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:Fotopodglad.Controls"
-        xmlns:conv="clr-namespace:Fotopodglad.Converters"
         Title="Fotopodgląd — siatka"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
         KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">
-    <Window.Resources>
-        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-    </Window.Resources>
     <Grid>
         <Grid x:Name="GridHost"/>
 
@@ -30,12 +25,6 @@
                 </Style>
             </TextBlock.Style>
         </TextBlock>
-
-        <controls:FullscreenPhotoView DataContext="{Binding Overlay}"
-                                       Visibility="{Binding DataContext.IsOverlayVisible,
-                                           RelativeSource={RelativeSource AncestorType={x:Type Window}},
-                                           Converter={StaticResource BoolToVisibility}}"
-                                       Panel.ZIndex="10"/>
 
         <Grid x:Name="GuestSidebarHost" Panel.ZIndex="20"
               HorizontalAlignment="Right" VerticalAlignment="Bottom"/>

@@ -10,12 +10,14 @@ namespace Fotopodglad.Views;
 
 public partial class GridWindow : Window
 {
-    private readonly GridWindowViewModel _viewModel;
-
-    public GridWindow(GridWindowViewModel viewModel, IThumbnailCache thumbnailCache, GuestAccessCoordinator guestAccess, AppSettings settings)
+    public GridWindow(
+        GridWindowViewModel viewModel,
+        IThumbnailCache thumbnailCache,
+        GuestAccessCoordinator guestAccess,
+        AppSettings settings,
+        IScreenService screenService)
     {
         InitializeComponent();
-        _viewModel = viewModel;
         DataContext = viewModel;
 
         var grid = new MasonryGridControl();
@@ -23,16 +25,19 @@ public partial class GridWindow : Window
         grid.PhotoClicked += photo => viewModel.OnPhotoClicked(photo);
         GridHost.Children.Add(grid);
 
-        var guestSidebar = new GuestAccessSidebar(settings) { DataContext = guestAccess };
+        var guestSidebar = new GuestAccessSidebar(settings, compactLayout: screenService.GetScreens().Count == 1)
+        {
+            DataContext = guestAccess
+        };
         GuestSidebarHost.Children.Add(guestSidebar);
     }
 
-    private void OnKeyDown(object sender, KeyEventArgs e)
+    private async void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && _viewModel.IsOverlayVisible)
+        if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            _viewModel.CloseOverlay();
             e.Handled = true;
+            await ((App)Application.Current).OpenSettingsAsync(this);
         }
     }
 }

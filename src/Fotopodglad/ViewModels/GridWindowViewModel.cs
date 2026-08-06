@@ -1,51 +1,25 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
 
 namespace Fotopodglad.ViewModels;
 
 /// <summary>
-/// VM Okna B: niekończąca się siatka wszystkich zdjęć + reużywalny overlay pełnoekranowy (FullscreenPhotoView).
-/// Kliknięcie miniatury pokazuje ją przez skonfigurowany czas (tryb Manual), po czym overlay znika,
-/// przywracając siatkę. Dzięki temu Okno A pozostaje podglądem, a Okno B galerią zdjęć.
+/// VM Okna B: niekończąca się siatka wszystkich zdjęć. Kliknięcie miniatury przekazuje zdjęcie
+/// do Okna A, dzięki czemu siatka pozostaje cały czas widoczna na swoim monitorze.
 /// </summary>
-public sealed partial class GridWindowViewModel : ViewModelBase
+public sealed class GridWindowViewModel : ViewModelBase
 {
     private readonly IPhotoLibraryService _library;
+    private readonly MainViewWindowViewModel _mainView;
 
     public ObservableCollection<PhotoItem> Photos => _library.Photos;
 
-    public FullscreenPhotoViewModel Overlay { get; }
-
-    [ObservableProperty]
-    private bool isOverlayVisible;
-
-    public GridWindowViewModel(IPhotoLibraryService library, FullscreenPhotoViewModel overlay)
+    public GridWindowViewModel(IPhotoLibraryService library, MainViewWindowViewModel mainView)
     {
         _library = library;
-        Overlay = overlay;
-        Overlay.PropertyChanged += OnOverlayPropertyChanged;
+        _mainView = mainView;
     }
 
-    public void OnPhotoClicked(PhotoItem photo)
-    {
-        Overlay.ShowManually(photo);
-        IsOverlayVisible = true;
-    }
-
-    public void CloseOverlay()
-    {
-        IsOverlayVisible = false;
-        Overlay.ShowLatestAutomatically();
-    }
-
-    private void OnOverlayPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(FullscreenPhotoViewModel.Mode) && Overlay.Mode == PreviewMode.Auto)
-        {
-            IsOverlayVisible = false;
-        }
-    }
+    public void OnPhotoClicked(PhotoItem photo) => _mainView.Preview.ShowManually(photo);
 }

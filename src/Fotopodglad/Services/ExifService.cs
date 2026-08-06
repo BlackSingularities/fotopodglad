@@ -20,6 +20,7 @@ public sealed class ExifService : IExifService
     private const string QueryDateTimeOriginal = "/app1/ifd/exif/{ushort=36867}";
     private const string QueryExposureMode = "/app1/ifd/exif/{ushort=41986}";
     private const string QueryWhiteBalance = "/app1/ifd/exif/{ushort=41987}";
+    private const string QueryOrientation = "/app1/ifd/{ushort=274}";
 
     public Task<ExifData> ExtractAsync(string filePath, CancellationToken cancellationToken = default)
         => Task.Run(() => Extract(filePath), cancellationToken);
@@ -27,6 +28,7 @@ public sealed class ExifService : IExifService
     private static ExifData Extract(string filePath)
     {
         int width = 0, height = 0;
+        int? orientation = null;
         double? aperture = null, exposureTime = null, focalLength = null;
         int? iso = null;
         DateTime? dateTaken = null;
@@ -42,6 +44,7 @@ public sealed class ExifService : IExifService
 
             if (frame.Metadata is BitmapMetadata metadata)
             {
+                orientation = TryGetInt(metadata, QueryOrientation);
                 aperture = TryGetDouble(metadata, QueryFNumber);
                 exposureTime = TryGetDouble(metadata, QueryExposureTime);
                 focalLength = TryGetDouble(metadata, QueryFocalLength);
@@ -57,13 +60,15 @@ public sealed class ExifService : IExifService
             // ale nie chcemy wywrócić całej biblioteki zdjęć przez jeden zły plik.
         }
 
-        if (aperture is null || exposureTime is null || focalLength is null || iso is null || dateTaken is null)
+        if (aperture is null || exposureTime is null || focalLength is null || iso is null || dateTaken is null || orientation is null)
         {
             TryFillFromMetadataExtractor(
                 filePath,
                 ref aperture, ref exposureTime, ref focalLength, ref iso, ref dateTaken,
-                ref exposureMode, ref whiteBalance);
+                ref exposureMode, ref whiteBalance, ref orientation);
         }
+
+        (width, height) = ApplyOrientationToDimensions(width, height, orientation);
 
         long fileSize = 0;
         try
@@ -92,7 +97,8 @@ public sealed class ExifService : IExifService
     private static void TryFillFromMetadataExtractor(
         string filePath,
         ref double? aperture, ref double? exposureTime, ref double? focalLength,
-        ref int? iso, ref DateTime? dateTaken, ref string? exposureMode, ref string? whiteBalance)
+        ref int? iso, ref DateTime? dateTaken, ref string? exposureMode, ref string? whiteBalance,
+        ref int? orientation)
     {
         try
         {
@@ -114,6 +120,9 @@ public sealed class ExifService : IExifService
             }
 
             dateTaken ??= ifd0?.TryGetDateTime(ExifDirectoryBase.TagDateTime, out var ifdDt) == true ? ifdDt : null;
+            orientation ??= ifd0?.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientationValue) == true
+                ? orientationValue
+                : null;
         }
         catch (Exception ex) when (ex is IOException or ImageProcessingException)
         {
@@ -176,6 +185,9 @@ public sealed class ExifService : IExifService
         var value = TryGetDouble(metadata, query);
         return value.HasValue ? (int)Math.Round(value.Value) : null;
     }
+
+    internal static (int Width, int Height) ApplyOrientationToDimensions(int width, int height, int? orientation)
+        => orientation is >= 5 and <= 8 ? (height, width) : (width, height);
 
     private static DateTime? TryGetDateTime(BitmapMetadata metadata, string query)
     {

@@ -13,14 +13,18 @@
     <Border x:Name="RootBorder" Margin="0,0,32,32" Padding="18"
             Background="{StaticResource Brush.SurfaceOverlay}" CornerRadius="10"
             Visibility="Collapsed">
-        <StackPanel>
-            <TextBlock Text="Dołącz do sieci" Style="{StaticResource Style.ExifText}" FontSize="12"
-                       Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-            <Image x:Name="WifiQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+        <StackPanel x:Name="QrGroupsPanel">
+            <StackPanel>
+                <TextBlock Text="Dołącz do sieci" Style="{StaticResource Style.ExifText}" FontSize="12"
+                           Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                <Image x:Name="WifiQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+            </StackPanel>
 
-            <TextBlock Text="Pobierz najnowsze zdjęcie" Style="{StaticResource Style.ExifText}" FontSize="12"
-                       Foreground="{StaticResource Brush.TextSecondary}" Margin="0,16,0,6" HorizontalAlignment="Center"/>
-            <Image x:Name="PhotoQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel x:Name="PhotoQrGroup" Margin="0,16,0,0">
+                <TextBlock Text="Pobierz wyświetlane zdjęcie" Style="{StaticResource Style.ExifText}" FontSize="12"
+                           Foreground="{StaticResource Brush.TextSecondary}" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                <Image x:Name="PhotoQrImage" Width="120" Height="120" RenderOptions.BitmapScalingMode="HighQuality"/>
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>
