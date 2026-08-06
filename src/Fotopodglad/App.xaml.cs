@@ -38,12 +38,7 @@ public partial class App : Application
         // mogło zaoferować wybór konkretnego monitora dla każdego z dwóch okien aplikacji.
         var screens = new ScreenService().GetScreens();
 
-        var wantsToChangeSettings = MessageBox.Show(
-            "Czy chcesz zmienić ustawienia (ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
-            "Fotopodgląd — ustawienia",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question,
-            MessageBoxResult.No) == MessageBoxResult.Yes;
+        var wantsToChangeSettings = PromptToChangeSettings();
 
         if (wantsToChangeSettings)
         {
@@ -106,6 +101,49 @@ public partial class App : Application
         }
 
         return dialog.ShowDialog() == DialogResult.OK ? dialog.SelectedPath : null;
+    }
+
+    private bool PromptToChangeSettings()
+    {
+        // Po zamknięciu FolderBrowserDialog Windows nie zawsze oddaje fokus aplikacji WPF.
+        // MessageBox bez właściciela jest wtedy widoczny dopiero po kliknięciu aplikacji na pasku zadań.
+        // Niewidoczne, aktywowane okno-właściciel wymusza pokazanie pytania od razu na pierwszym planie.
+        var previousShutdownMode = ShutdownMode;
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        var owner = new Window
+        {
+            Width = 1,
+            Height = 1,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            ShowActivated = true,
+            AllowsTransparency = true,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Opacity = 0,
+            Topmost = true,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen
+        };
+
+        try
+        {
+            owner.Show();
+            owner.Activate();
+
+            return MessageBox.Show(
+                owner,
+                "Czy chcesz zmienić ustawienia (ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
+                "Fotopodgląd — ustawienia",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No) == MessageBoxResult.Yes;
+        }
+        finally
+        {
+            owner.Close();
+            ShutdownMode = previousShutdownMode;
+        }
     }
 
     private static void ConfigureServices(ServiceCollection services, AppSettings settings)
