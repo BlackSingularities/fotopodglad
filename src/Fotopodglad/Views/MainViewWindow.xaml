@@ -6,6 +6,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
+        KeyDown="OnKeyDown"
         Background="{StaticResource Brush.Background}">
     <controls:FullscreenPhotoView DataContext="{Binding Preview}"/>
 </Window>

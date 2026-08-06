@@ -7,8 +7,8 @@ using Fotopodglad.ViewModels;
 namespace Fotopodglad.Controls;
 
 /// <summary>
-/// Reużywalny, pełnoekranowy widok zdjęcia z danymi EXIF i zoomem. Używany bezpośrednio w Oknie A
-/// (tryb Auto) oraz jako overlay w Oknie B (tryb Manual po kliknięciu miniatury w siatce).
+/// Widok zdjęcia z danymi EXIF i zoomem używany w Oknie A. Działa automatycznie dla najnowszego
+/// zdjęcia albo tymczasowo pokazuje fotografię klikniętą w siatce Okna B.
 /// Crossfade między kolejnymi zdjęciami realizowany przez naprzemienne użycie dwóch warstw ZoomableImage,
 /// żeby uniknąć migotania przy podmianie źródła.
 /// </summary>

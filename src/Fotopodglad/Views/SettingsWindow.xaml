@@ -262,7 +262,7 @@
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Czas podglądu zdjęcia" Style="{StaticResource FieldLabel}"/>
                                         <TextBox x:Name="ManualHoldTextBox"/>
-                                        <TextBlock Text="3–120 sekund, potem powrót do siatki" Style="{StaticResource HintText}" Margin="0,6,0,0"/>
+                                        <TextBlock Text="3–120 sekund, potem powrót do najnowszego" Style="{StaticResource HintText}" Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>

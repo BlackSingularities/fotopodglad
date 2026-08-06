@@ -9,7 +9,7 @@ namespace Fotopodglad.Controls;
 
 public partial class GuestAccessSidebar : UserControl
 {
-    public GuestAccessSidebar(AppSettings settings)
+    public GuestAccessSidebar(AppSettings settings, bool compactLayout = false)
     {
         InitializeComponent();
         var qrCodeSize = Math.Clamp(settings.QrCodeSize, 96, 320);
@@ -17,6 +17,13 @@ public partial class GuestAccessSidebar : UserControl
         WifiQrImage.Height = qrCodeSize;
         PhotoQrImage.Width = qrCodeSize;
         PhotoQrImage.Height = qrCodeSize;
+
+        if (compactLayout)
+        {
+            QrGroupsPanel.Orientation = Orientation.Horizontal;
+            PhotoQrGroup.Margin = new Thickness(18, 0, 0, 0);
+        }
+
         DataContextChanged += OnDataContextChanged;
     }
 

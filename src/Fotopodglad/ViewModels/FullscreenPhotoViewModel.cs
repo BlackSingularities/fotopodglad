@@ -12,9 +12,8 @@ namespace Fotopodglad.ViewModels;
 
 /// <summary>
 /// VM reużywalnej kontrolki pełnoekranowego podglądu (Controls/FullscreenPhotoView), używanej zarówno
-/// w Oknie A (zawsze w trybie Auto) jak i w Oknie B jako overlay wywoływany kliknięciem w siatkę
-/// (tryb Manual, minimum settings.ManualHoldSeconds, potem automatyczny powrót do najnowszego zdjęcia —
-/// pozostając pełnoekranowo).
+/// w Oknie A. Domyślnie pokazuje najnowsze zdjęcie; kliknięcie miniatury w Oknie B przełącza je
+/// tymczasowo w tryb Manual, a po settings.ManualHoldSeconds wraca do najnowszego zdjęcia.
 /// </summary>
 public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 {

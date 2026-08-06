@@ -3,6 +3,8 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
+using Fotopodglad.ViewModels;
+using System.ComponentModel;
 
 namespace Fotopodglad.Services.GuestGallery;
 
@@ -10,7 +12,7 @@ namespace Fotopodglad.Services.GuestGallery;
 /// Spina hotspot WiFi, lokalny serwer HTTP i generowanie kodów QR w jedną całość widoczną dla UI:
 /// - przy starcie próbuje uruchomić hotspot; jeśli sprzęt nie wspiera trybu AP+STA, funkcja gości
 ///   zostaje po cichu wyłączona (Status=Unsupported), reszta aplikacji działa normalnie;
-/// - QR zdjęcia aktualizuje się na najnowsze zdjęcie z biblioteki;
+/// - QR zdjęcia śledzi fotografię faktycznie wyświetlaną w Oknie A;
 /// - po 5 minutach bez żadnego pobrania hotspot i serwer są zatrzymywane (Status=IdleStopped);
 /// - pojawienie się nowego zdjęcia, gdy jesteśmy w stanie IdleStopped, automatycznie wznawia hotspot.
 /// </summary>
@@ -25,6 +27,8 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
     private readonly DispatcherTimer _idleTimer;
     private DateTime _lastActivityUtc;
     private bool _starting;
+    private bool _stopping;
+    private PhotoItem? _displayedPhoto;
 
     [ObservableProperty]
     private GuestAccessStatus status = GuestAccessStatus.Unknown;
@@ -35,14 +39,23 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
     [ObservableProperty]
     private BitmapImage? photoQrImage;
 
-    public GuestAccessCoordinator(IHotspotService hotspot, GuestGalleryHttpServer server, IPhotoLibraryService library)
+    private readonly FullscreenPhotoViewModel _preview;
+
+    public GuestAccessCoordinator(
+        IHotspotService hotspot,
+        GuestGalleryHttpServer server,
+        IPhotoLibraryService library,
+        MainViewWindowViewModel mainView)
     {
         _hotspot = hotspot;
         _server = server;
         _library = library;
+        _preview = mainView.Preview;
+        _displayedPhoto = _preview.CurrentPhoto;
 
         _server.PhotoDownloaded += OnPhotoDownloaded;
         _library.NewestChanged += OnNewestChanged;
+        _preview.PropertyChanged += OnPreviewPropertyChanged;
 
         _idleTimer = new DispatcherTimer { Interval = IdleCheckInterval };
         _idleTimer.Tick += (_, _) => CheckIdleTimeout();
@@ -50,7 +63,7 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
 
     public async Task StartAsync()
     {
-        if (_starting || Status == GuestAccessStatus.Active)
+        if (_starting || _stopping || Status == GuestAccessStatus.Active)
         {
             return;
         }
@@ -91,16 +104,46 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
 
     private void UpdatePhotoQr()
     {
-        if (_hotspot.LocalIpAddress is not { } ip || _library.Latest is not { } latest)
+        var photo = _displayedPhoto ?? _library.Latest;
+        if (_hotspot.LocalIpAddress is not { } ip || photo is null)
         {
             return;
         }
 
-        PhotoQrImage = QrCodeService.GeneratePhotoDownloadQr(ip, _server.Port, latest.SequenceId);
+        PhotoQrImage = QrCodeService.GeneratePhotoDownloadQr(ip, _server.Port, photo.SequenceId);
+    }
+
+    public void SetDisplayedPhoto(PhotoItem? photo)
+    {
+        _displayedPhoto = photo;
+
+        if (Status == GuestAccessStatus.Active)
+        {
+            UpdatePhotoQr();
+        }
+        else if (photo is not null && Status == GuestAccessStatus.IdleStopped)
+        {
+            _ = StartAsync();
+        }
+    }
+
+    internal long? SharedPhotoSequenceId => (_displayedPhoto ?? _library.Latest)?.SequenceId;
+
+    private void OnPreviewPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FullscreenPhotoViewModel.CurrentPhoto))
+        {
+            SetDisplayedPhoto(_preview.CurrentPhoto);
+        }
     }
 
     private void OnNewestChanged(PhotoItem newest)
     {
+        if (_stopping)
+        {
+            return;
+        }
+
         if (Status == GuestAccessStatus.Active)
         {
             UpdatePhotoQr();
@@ -136,10 +179,23 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
 
     public void Dispose()
     {
+        _stopping = true;
         _idleTimer.Stop();
         _server.PhotoDownloaded -= OnPhotoDownloaded;
         _library.NewestChanged -= OnNewestChanged;
+        _preview.PropertyChanged -= OnPreviewPropertyChanged;
         _server.Stop();
         _ = _hotspot.StopAsync();
+    }
+
+    public async Task StopAsync()
+    {
+        _stopping = true;
+        _idleTimer.Stop();
+        _server.Stop();
+        await _hotspot.StopAsync();
+        WifiQrImage = null;
+        PhotoQrImage = null;
+        Status = GuestAccessStatus.IdleStopped;
     }
 }

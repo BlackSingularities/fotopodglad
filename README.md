@@ -5,10 +5,10 @@ Aplikacja desktopowa (WPF, .NET 8) dla fotografa pracującego na dwóch monitora
 ## Funkcje
 
 - **Okno A (Ekran 1)** — pełnoekranowy, pozbawiony jakichkolwiek kontrolek podgląd zawsze najnowszego zdjęcia: nazwa pliku, godzina, parametry ekspozycji (przysłona, czas, ISO, ogniskowa), wymiary i rozmiar pliku — każde z osobną ikoną wektorową (bez emoji/fontów ikon). Możliwość przybliżania kółkiem myszy.
-- **Okno B (Ekran 2)** — pełnoekranowa, niekończąca się siatka masonry o 6 kolumnach ze wszystkimi zdjęciami z sesji, bez odstępów, najnowsze zawsze na górze. Kliknięcie zdjęcia pokazuje je pełnoekranowo przez ustawiony czas, po czym aplikacja automatycznie wraca do siatki; klawisz `Esc` zamyka podgląd od razu.
-- **2 monitory** — okna rozmieszczają się na osobnych ekranach (domyślnie automatycznie, można wybrać ręcznie w ustawieniach); przy jednym monitorze oba okna nakładają się na tym samym ekranie (bez błędów, przełączanie Alt+Tab).
-- **Ustawienia** — po wyborze folderu aplikacja pyta, czy zmienić ustawienia: który ekran ma Okno A, który Okno B, nazwa/hasło sieci WiFi dla gości, wielkość kodów QR, liczba kolumn siatki i czas podglądu wybranego zdjęcia przed powrotem do siatki. Osobna zakładka "O aplikacji" z autorem i linkiem do repozytorium.
-- **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot WiFi; w sidebarze Okna B widoczne są dwa kody QR (dołączenie do sieci + pobranie najnowszego zdjęcia). Sieć wyłącza się automatycznie po 5 minutach bezczynności i wznawia przy nowym zdjęciu. Jeśli sprzęt nie wspiera jednoczesnego trybu access-point + klient WiFi, funkcja po cichu się wyłącza — reszta aplikacji działa bez zmian.
+- **Okno B (Ekran 2)** — pełnoekranowa, przewijana siatka masonry ze wszystkimi zdjęciami z sesji, bez odstępów, najnowsze zawsze na górze. Kliknięcie miniatury pokazuje wybrane zdjęcie w Oknie A przez ustawiony czas; siatka pozostaje cały czas widoczna.
+- **1 lub 2 monitory** — przy dwóch monitorach podgląd i siatka zajmują osobne ekrany. Przy jednym podgląd zajmuje górne 60%, a przewijana siatka dolne 40% szerokości ekranu. Panel QR pozostaje w prawym dolnym rogu.
+- **Ustawienia** — dostępne przy starcie i w dowolnym momencie skrótem `Ctrl+P`. Po zapisaniu aplikacja uruchamia się ponownie i stosuje konfigurację ekranów, galerii, podglądu oraz wielkości kodów QR.
+- **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot WiFi; w sidebarze Okna B widoczne są dwa kody QR (dołączenie do sieci + pobranie zdjęcia aktualnie wyświetlanego w Oknie A). Sieć wyłącza się automatycznie po 5 minutach bezczynności i wznawia przy nowym zdjęciu. Jeśli sprzęt nie wspiera jednoczesnego trybu access-point + klient WiFi, funkcja po cichu się wyłącza — reszta aplikacji działa bez zmian.
 - **Aplikacja nigdzie nie zapisuje kopii zdjęć.** Miniatury w siatce są cache'owane wyłącznie w pamięci RAM, serwer HTTP dla gości czyta i wysyła bajty bezpośrednio z oryginalnego pliku. Jedyny zapisywany plik to `settings.json` (ścieżka folderu i ustawienia, w `%AppData%\Fotopodglad`).
 
 ## Pobieranie i uruchomienie
@@ -53,7 +53,7 @@ tests/Fotopodglad.Tests/   testy jednostkowe (xUnit): watcher folderu, EXIF, alg
 ## Wymagania sprzętowe/systemowe
 
 - Windows 10/11.
-- Do pełnego doświadczenia: 2 monitory (aplikacja działa też na jednym, z ograniczeniem opisanym wyżej).
+- Jeden lub dwa monitory; układ dopasowuje się automatycznie.
 - Funkcja pobierania na telefon gościa wymaga karty WiFi wspierającej jednoczesny tryb access-point + klient — zależne od sprzętu/sterownika, wykrywane automatycznie przy starcie.
 
 ## Licencja
