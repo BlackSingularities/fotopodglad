@@ -35,7 +35,10 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings)
     {
         _library = library;
-        var manualHoldDuration = TimeSpan.FromSeconds(Math.Max(1, settings.ManualHoldSeconds));
+        var manualHoldDuration = TimeSpan.FromSeconds(Math.Clamp(
+            settings.ManualHoldSeconds,
+            AppSettings.MinManualHoldSeconds,
+            AppSettings.MaxManualHoldSeconds));
         _manualHoldTimer = new DispatcherTimer { Interval = manualHoldDuration };
         _manualHoldTimer.Tick += (_, _) =>
         {

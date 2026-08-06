@@ -262,7 +262,7 @@
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Czas podglądu zdjęcia" Style="{StaticResource FieldLabel}"/>
                                         <TextBox x:Name="ManualHoldTextBox"/>
-                                        <TextBlock Text="3–120 sekund, potem powrót do najnowszego" Style="{StaticResource HintText}" Margin="0,6,0,0"/>
+                                        <TextBlock Text="3–900 sekund, potem powrót do najnowszego" Style="{StaticResource HintText}" Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -271,6 +271,10 @@
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
                                 <TextBlock Text="Udostępnianie przez QR" Style="{StaticResource SectionTitle}"/>
+                                <CheckBox x:Name="GuestAccessEnabledCheckBox"
+                                          Content="Automatycznie uruchamiaj hotspot i udostępnianie QR"
+                                          Foreground="{StaticResource Brush.TextPrimary}"
+                                          FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>

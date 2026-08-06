@@ -40,6 +40,7 @@ public partial class SettingsWindow : Window
 
         WifiSsidTextBox.Text = settings.WifiSsid ?? string.Empty;
         WifiPasswordBox.Password = settings.WifiPassphrase ?? string.Empty;
+        GuestAccessEnabledCheckBox.IsChecked = settings.GuestAccessEnabled;
         GridColumnsTextBox.Text = settings.GridColumnCount.ToString(CultureInfo.InvariantCulture);
         ManualHoldTextBox.Text = settings.ManualHoldSeconds.ToString(CultureInfo.InvariantCulture);
         QrSizeSlider.Value = Math.Clamp(settings.QrCodeSize, 96, 320);
@@ -78,12 +79,14 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (!double.TryParse(ManualHoldTextBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var holdSeconds) || holdSeconds is < 3 or > 120)
+        if (!double.TryParse(ManualHoldTextBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var holdSeconds) ||
+            holdSeconds is < AppSettings.MinManualHoldSeconds or > AppSettings.MaxManualHoldSeconds)
         {
-            MessageBox.Show(this, "Czas podglądu musi być liczbą od 3 do 120 sekund.", "Nieprawidłowa wartość", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Czas podglądu musi być liczbą od 3 do 900 sekund.", "Nieprawidłowa wartość", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
+        _settings.GuestAccessEnabled = GuestAccessEnabledCheckBox.IsChecked == true;
         _settings.WifiSsid = string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid;
         _settings.WifiPassphrase = string.IsNullOrWhiteSpace(wifiPassphrase) ? null : wifiPassphrase;
         _settings.GridColumnCount = columns;

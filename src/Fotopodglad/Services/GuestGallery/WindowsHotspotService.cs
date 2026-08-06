@@ -58,7 +58,9 @@ public sealed class WindowsHotspotService : IHotspotService
                 return false;
             }
 
-            LocalIpAddress = DetectHotspotLocalIp();
+            // StartTetheringAsync może zakończyć się zanim wirtualny adapter dostanie adres IP.
+            // Szczególnie w szybkim starcie bez otwierania ustawień potrzebne jest krótkie oczekiwanie.
+            LocalIpAddress = await WaitForHotspotLocalIpAsync(cancellationToken);
             if (LocalIpAddress is not null)
             {
                 return true;
@@ -137,6 +139,24 @@ public sealed class WindowsHotspotService : IHotspotService
                     return ip;
                 }
             }
+        }
+
+        return null;
+    }
+
+    private static async Task<string?> WaitForHotspotLocalIpAsync(CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (DetectHotspotLocalIp() is { } ipAddress)
+            {
+                return ipAddress;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
         }
 
         return null;

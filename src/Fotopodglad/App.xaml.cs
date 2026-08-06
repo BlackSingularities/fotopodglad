@@ -69,9 +69,13 @@ public partial class App : Application
         var library = _services.GetRequiredService<IPhotoLibraryService>();
         library.Start(folderPath);
 
-        // Uruchamiane w tle — jeśli sprzęt nie wspiera hotspotu, coordinator sam ustawi Status=Unsupported
-        // i nie powinno to w żaden sposób blokować startu ani działania głównej aplikacji.
-        _ = _services.GetRequiredService<GuestAccessCoordinator>().StartAsync();
+        // Hotspot jest domyślnie włączony i startuje także wtedy, gdy użytkownik odpowie "Nie"
+        // na pytanie o pokazanie ustawień. Można go jawnie wyłączyć przełącznikiem w Ctrl+P.
+        var guestAccess = _services.GetRequiredService<GuestAccessCoordinator>();
+        if (settings.GuestAccessEnabled)
+        {
+            _ = guestAccess.StartAsync();
+        }
 
         // Indeksy z ustawień są clampowane na wypadek, gdyby użytkownik wybrał ekran, który w międzyczasie
         // odłączono (np. inny zestaw monitorów niż przy poprzednim zapisie ustawień).
