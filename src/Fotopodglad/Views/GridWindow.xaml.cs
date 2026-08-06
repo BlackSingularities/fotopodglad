@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using Fotopodglad.Configuration;
 using Fotopodglad.Controls;
+using Fotopodglad.Helpers;
 using Fotopodglad.Services;
 using Fotopodglad.Services.GuestGallery;
 using Fotopodglad.ViewModels;
@@ -18,6 +19,7 @@ public partial class GridWindow : Window
         IScreenService screenService)
     {
         InitializeComponent();
+        Title = ApplicationVersion.CreateWindowTitle("siatka");
         DataContext = viewModel;
 
         var grid = new MasonryGridControl();

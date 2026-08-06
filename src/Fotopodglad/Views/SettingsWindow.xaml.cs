@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Navigation;
 using Fotopodglad.Configuration;
+using Fotopodglad.Helpers;
 using Fotopodglad.Models;
 using Microsoft.Win32;
 
@@ -18,6 +19,9 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _settings = settings;
         _screens = screens;
+        Title = ApplicationVersion.CreateWindowTitle("ustawienia");
+        AppNameTextBlock.Text = ApplicationVersion.ProductName;
+        AboutAppNameTextBlock.Text = ApplicationVersion.ProductName;
 
         var screenLabels = _screens
             .Select((screen, index) => $"Ekran {index + 1} — {screen.Width}×{screen.Height}{(screen.IsPrimary ? " (główny)" : "")}")

@@ -213,7 +213,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="Fotopodgląd" FontSize="25" FontWeight="SemiBold"/>
+                <TextBlock x:Name="AppNameTextBlock" Text="Fotopodgląd" FontSize="25" FontWeight="SemiBold"/>
                 <TextBlock Text="Skonfiguruj ekrany, galerię i udostępnianie zdjęć"
                            Foreground="{StaticResource Brush.TextSecondary}" FontSize="12" Margin="0,4,0,0"/>
             </StackPanel>
@@ -353,7 +353,7 @@
                     <StackPanel>
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
-                                <TextBlock Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="AboutAppNameTextBlock" Text="Fotopodgląd" FontSize="24" FontWeight="SemiBold"/>
                                 <TextBlock Text="Podgląd i udostępnianie zdjęć podczas sesji fotograficznej"
                                            Foreground="{StaticResource Brush.TextSecondary}" Margin="0,5,0,18"/>
                                 <TextBlock Style="{StaticResource AboutBody}"
@@ -408,8 +408,7 @@
 
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
-                                <TextBlock Text="AUTOR" Style="{StaticResource HintText}"/>
-                                <TextBlock Margin="0,4,0,0">
+                                <TextBlock>
                                     <Hyperlink x:Name="RepoLink" NavigateUri="https://github.com/BlackSingularities/fotopodglad"
                                                RequestNavigate="OnRepoLinkRequestNavigate">
                                         <Run Text="github.com/BlackSingularities/fotopodglad"/>

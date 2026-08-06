@@ -264,7 +264,7 @@ public partial class App : Application
             return MessageBox.Show(
                 owner,
                 "Czy chcesz zmienić ustawienia (folder zdjęć, ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
-                "Fotopodgląd — ustawienia",
+                ApplicationVersion.CreateWindowTitle("ustawienia"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question,
                 MessageBoxResult.No) == MessageBoxResult.Yes;
