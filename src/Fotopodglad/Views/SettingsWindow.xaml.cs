@@ -1,11 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Navigation;
 using Fotopodglad.Configuration;
 using Fotopodglad.Models;
-using Forms = System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace Fotopodglad.Views;
 
@@ -122,22 +121,20 @@ public partial class SettingsWindow : Window
 
     private void OnBrowseFolderClick(object sender, RoutedEventArgs e)
     {
-        using var dialog = new Forms.FolderBrowserDialog
+        var dialog = new OpenFolderDialog
         {
-            Description = "Wybierz folder, z którego Fotopodgląd ma wczytywać zdjęcia",
-            UseDescriptionForTitle = true,
-            ShowNewFolderButton = true
+            Title = "Wybierz folder, z którego Fotopodgląd ma wczytywać zdjęcia",
+            Multiselect = false
         };
 
         if (Directory.Exists(WatchedFolderTextBox.Text))
         {
-            dialog.SelectedPath = WatchedFolderTextBox.Text;
+            dialog.InitialDirectory = WatchedFolderTextBox.Text;
         }
 
-        var owner = new NativeWindowOwner(new WindowInteropHelper(this).Handle);
-        if (dialog.ShowDialog(owner) == Forms.DialogResult.OK)
+        if (dialog.ShowDialog(this) == true)
         {
-            WatchedFolderTextBox.Text = dialog.SelectedPath;
+            WatchedFolderTextBox.Text = dialog.FolderName;
         }
     }
 
@@ -158,10 +155,5 @@ public partial class SettingsWindow : Window
         }
 
         e.Handled = true;
-    }
-
-    private sealed class NativeWindowOwner(IntPtr handle) : Forms.IWin32Window
-    {
-        public IntPtr Handle { get; } = handle;
     }
 }
