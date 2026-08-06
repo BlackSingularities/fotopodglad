@@ -59,13 +59,19 @@ public sealed class WindowsHotspotService : IHotspotService
             }
 
             LocalIpAddress = DetectHotspotLocalIp();
-            return LocalIpAddress is not null;
+            if (LocalIpAddress is not null)
+            {
+                return true;
+            }
+
+            await StopAsync();
+            return false;
         }
         catch (Exception)
         {
             // Dowolny błąd (brak wsparcia sprzętowego, brak uprawnień, starszy Windows bez tej funkcji
             // dla aplikacji niepakietowanej MSIX) traktujemy jako "funkcja niedostępna na tym sprzęcie".
-            _tetheringManager = null;
+            await StopAsync();
             return false;
         }
     }

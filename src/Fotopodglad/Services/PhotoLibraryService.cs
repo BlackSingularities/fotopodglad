@@ -20,6 +20,7 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     private readonly IFolderWatcherService _watcher;
     private readonly IExifService _exifService;
     private readonly Dispatcher _dispatcher;
+    private readonly HashSet<string> _loadedPaths = new(StringComparer.OrdinalIgnoreCase);
     private long _sequenceCounter;
 
     private int _pendingBacklogCount;
@@ -44,6 +45,7 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
     public void Start(string folderPath)
     {
         Photos.Clear();
+        _loadedPaths.Clear();
         _sequenceCounter = 0;
         _pendingBacklogCount = 0;
         _initialScanCompleted = 0;
@@ -78,12 +80,26 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
                 return;
             }
 
+            var discoveredAtUtc = DateTime.UtcNow;
+            try
+            {
+                var lastWriteUtc = File.GetLastWriteTimeUtc(filePath);
+                if (lastWriteUtc != DateTime.MinValue)
+                {
+                    discoveredAtUtc = lastWriteUtc;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+
             var item = new PhotoItem
             {
                 FilePath = filePath,
                 FileName = Path.GetFileName(filePath),
                 Exif = exif,
-                DiscoveredAtUtc = DateTime.UtcNow,
+                // Dla zdjęć bez EXIF czas modyfikacji daje prawidłową kolejność także podczas skanu startowego.
+                DiscoveredAtUtc = discoveredAtUtc,
                 SequenceId = Interlocked.Increment(ref _sequenceCounter)
             };
 
@@ -130,6 +146,11 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
 
     private void InsertPhoto(PhotoItem item, bool isBacklog)
     {
+        if (!_loadedPaths.Add(item.FilePath))
+        {
+            return;
+        }
+
         // Sortowanie: najpierw po dacie wykonania (EXIF), a przy braku/remisie po kolejności wykrycia (SequenceId).
         var insertIndex = 0;
         for (; insertIndex < Photos.Count; insertIndex++)
@@ -151,8 +172,10 @@ public sealed class PhotoLibraryService : IPhotoLibraryService
 
     private static int ComparePhotos(PhotoItem a, PhotoItem b)
     {
-        var aTime = a.Exif.DateTaken ?? a.DiscoveredAtUtc;
-        var bTime = b.Exif.DateTaken ?? b.DiscoveredAtUtc;
+        // EXIF DateTaken nie zawiera strefy czasowej i reprezentuje lokalny czas aparatu.
+        // Fallback z systemu plików konwertujemy więc do czasu lokalnego przed porównaniem.
+        var aTime = a.Exif.DateTaken ?? a.DiscoveredAtUtc.ToLocalTime();
+        var bTime = b.Exif.DateTaken ?? b.DiscoveredAtUtc.ToLocalTime();
         var timeComparison = bTime.CompareTo(aTime); // malejąco: nowsze pierwsze
         return timeComparison != 0 ? timeComparison : b.SequenceId.CompareTo(a.SequenceId);
     }

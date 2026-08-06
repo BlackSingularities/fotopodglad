@@ -39,9 +39,17 @@ public sealed class FolderWatcherService : IFolderWatcherService
         _cts = new CancellationTokenSource();
         _pendingFiles = Channel.CreateUnbounded<string>();
 
+        // Najpierw robimy migawkę zaległości i oznaczamy ją jako znaną. Dzięki temu zdarzenia watchera
+        // nie wyślą tych samych plików drugi raz, gdy jest uruchamiany równolegle ze skanem startowym.
+        var backlog = EnumerateSupportedFiles(folderPath).ToList();
+
         lock (_knownFilesLock)
         {
             _knownFiles.Clear();
+            foreach (var path in backlog)
+            {
+                _knownFiles.Add(path);
+            }
         }
 
         _watcher = new FileSystemWatcher(folderPath)
@@ -52,12 +60,13 @@ public sealed class FolderWatcherService : IFolderWatcherService
         };
         _watcher.Created += OnFileSystemEvent;
         _watcher.Renamed += OnFileSystemEvent;
+        _watcher.Deleted += OnFileDeleted;
         _watcher.Error += OnWatcherError;
         _watcher.EnableRaisingEvents = true;
 
         _ = ProcessQueueAsync(_pendingFiles.Reader, _cts.Token);
         _ = PollFallbackLoopAsync(folderPath, _cts.Token);
-        _ = LoadBacklogAsync(folderPath, _cts.Token);
+        _ = LoadBacklogAsync(backlog, _cts.Token);
     }
 
     public void Stop()
@@ -67,6 +76,7 @@ public sealed class FolderWatcherService : IFolderWatcherService
             _watcher.EnableRaisingEvents = false;
             _watcher.Created -= OnFileSystemEvent;
             _watcher.Renamed -= OnFileSystemEvent;
+            _watcher.Deleted -= OnFileDeleted;
             _watcher.Error -= OnWatcherError;
             _watcher.Dispose();
             _watcher = null;
@@ -84,6 +94,8 @@ public sealed class FolderWatcherService : IFolderWatcherService
     {
         EnqueueIfSupported(e.FullPath);
     }
+
+    private void OnFileDeleted(object sender, FileSystemEventArgs e) => ForgetFile(e.FullPath);
 
     private void OnWatcherError(object sender, ErrorEventArgs e)
     {
@@ -116,18 +128,8 @@ public sealed class FolderWatcherService : IFolderWatcherService
     /// InitialScanCompleted, żeby biblioteka mogła pokazać faktycznie najnowsze zdjęcie dopiero raz,
     /// po załadowaniu całej historii, zamiast migać przez każde zdjęcie po kolei.
     /// </summary>
-    private async Task LoadBacklogAsync(string folderPath, CancellationToken cancellationToken)
+    private async Task LoadBacklogAsync(IReadOnlyList<string> existing, CancellationToken cancellationToken)
     {
-        var existing = EnumerateSupportedFiles(folderPath).ToList();
-
-        lock (_knownFilesLock)
-        {
-            foreach (var path in existing)
-            {
-                _knownFiles.Add(path);
-            }
-        }
-
         try
         {
             var stabilityResults = await Task.WhenAll(
@@ -138,6 +140,10 @@ public sealed class FolderWatcherService : IFolderWatcherService
                 if (stabilityResults[i])
                 {
                     PhotoReady?.Invoke(existing[i], true);
+                }
+                else
+                {
+                    ForgetFile(existing[i]);
                 }
             }
         }
@@ -175,7 +181,7 @@ public sealed class FolderWatcherService : IFolderWatcherService
             return Directory.EnumerateFiles(folderPath)
                 .Where(f => SupportedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase));
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return [];
         }
@@ -195,10 +201,23 @@ public sealed class FolderWatcherService : IFolderWatcherService
                     // Pliki z tego toru są zawsze "na żywo" — zaległości startowe idą przez LoadBacklogAsync.
                     PhotoReady?.Invoke(path, false);
                 }
+                else
+                {
+                    // Polling może ponowić plik, który nie zdążył ustabilizować się w pierwszym limicie.
+                    ForgetFile(path);
+                }
             }
         }
         catch (OperationCanceledException)
         {
+        }
+    }
+
+    private void ForgetFile(string path)
+    {
+        lock (_knownFilesLock)
+        {
+            _knownFiles.Remove(path);
         }
     }
 

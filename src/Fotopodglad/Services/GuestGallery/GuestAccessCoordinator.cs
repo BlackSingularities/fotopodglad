@@ -73,6 +73,16 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
             _idleTimer.Start();
             Status = GuestAccessStatus.Active;
         }
+        catch (Exception)
+        {
+            // Port może być zajęty albo lokalny adres niedostępny. Funkcja gości nie może przez to
+            // zatrzymać startu dwóch głównych widoków ani pozostawić włączonego hotspotu bez serwera.
+            _server.Stop();
+            await _hotspot.StopAsync();
+            WifiQrImage = null;
+            PhotoQrImage = null;
+            Status = GuestAccessStatus.Unsupported;
+        }
         finally
         {
             _starting = false;
@@ -118,6 +128,8 @@ public sealed partial class GuestAccessCoordinator : ObservableObject, IDisposab
             _idleTimer.Stop();
             _server.Stop();
             _ = _hotspot.StopAsync();
+            WifiQrImage = null;
+            PhotoQrImage = null;
             Status = GuestAccessStatus.IdleStopped;
         }
     }

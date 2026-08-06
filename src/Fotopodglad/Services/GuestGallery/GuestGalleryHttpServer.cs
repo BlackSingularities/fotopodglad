@@ -1,19 +1,19 @@
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Fotopodglad.Services;
 
 namespace Fotopodglad.Services.GuestGallery;
 
 /// <summary>
-/// Minimalny lokalny serwer HTTP (bez ASP.NET Core — HttpListener wystarcza do jednego prostego
-/// endpointu). Serwuje pełnorozdzielczy JPG jako załącznik pod /photo/{sequenceId}, dzięki czemu
-/// otwarcie linku w przeglądarce telefonu od razu uruchamia pobieranie, bez pośredniej strony HTML.
-/// Bindowanie do konkretnego adresu IP hotspotu (nie do symbolu wieloznacznego "+") nie wymaga
-/// uprawnień administratora ani rezerwacji URL ACL.
+/// Minimalny serwer HTTP udostępniający pełne zdjęcie pod /photo/{sequenceId}.
+/// TcpListener nie korzysta z HTTP.sys, więc aplikacja nie wymaga uruchamiania jako administrator
+/// ani wcześniejszego tworzenia rezerwacji URL ACL na komputerze fotografa.
 /// </summary>
 public sealed class GuestGalleryHttpServer : IDisposable
 {
     private readonly IPhotoLibraryService _library;
-    private HttpListener? _listener;
+    private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
     public event Action? PhotoDownloaded;
@@ -29,9 +29,13 @@ public sealed class GuestGalleryHttpServer : IDisposable
     {
         Stop();
 
+        if (!IPAddress.TryParse(localIpAddress, out var address))
+        {
+            throw new ArgumentException("Nieprawidłowy adres IP hotspotu.", nameof(localIpAddress));
+        }
+
         _cts = new CancellationTokenSource();
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://{localIpAddress}:{Port}/photo/");
+        _listener = new TcpListener(address, Port);
         _listener.Start();
 
         _ = AcceptLoopAsync(_listener, _cts.Token);
@@ -43,72 +47,121 @@ public sealed class GuestGalleryHttpServer : IDisposable
         _cts?.Dispose();
         _cts = null;
 
-        if (_listener is { IsListening: true })
-        {
-            _listener.Stop();
-        }
-        _listener?.Close();
+        _listener?.Stop();
         _listener = null;
     }
 
-    private async Task AcceptLoopAsync(HttpListener listener, CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            HttpListenerContext context;
-            try
-            {
-                context = await listener.GetContextAsync();
-            }
-            catch (Exception) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception)
-            {
-                continue;
-            }
-
-            _ = HandleRequestAsync(context);
-        }
-    }
-
-    private async Task HandleRequestAsync(HttpListenerContext context)
+    private async Task AcceptLoopAsync(TcpListener listener, CancellationToken cancellationToken)
     {
         try
         {
-            var segment = context.Request.Url?.Segments.LastOrDefault()?.TrimEnd('/');
-            var photo = long.TryParse(segment, out var sequenceId)
-                ? _library.Photos.FirstOrDefault(p => p.SequenceId == sequenceId)
-                : null;
-
-            if (photo is null || !File.Exists(photo.FilePath))
+            while (!cancellationToken.IsCancellationRequested)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                context.Response.Close();
-                return;
+                var client = await listener.AcceptTcpClientAsync(cancellationToken);
+                _ = HandleClientAsync(client, cancellationToken);
             }
-
-            var bytes = await File.ReadAllBytesAsync(photo.FilePath);
-            context.Response.ContentType = "image/jpeg";
-            context.Response.AddHeader("Content-Disposition", $"attachment; filename=\"{photo.FileName}\"");
-            context.Response.ContentLength64 = bytes.Length;
-            await context.Response.OutputStream.WriteAsync(bytes);
-            context.Response.OutputStream.Close();
-
-            PhotoDownloaded?.Invoke();
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
+        }
+        catch (SocketException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task HandleClientAsync(TcpClient client, CancellationToken serverCancellationToken)
+    {
+        using (client)
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(serverCancellationToken))
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            var cancellationToken = timeout.Token;
+
             try
             {
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                context.Response.Close();
+                await using var stream = client.GetStream();
+                using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true);
+                var requestLine = await reader.ReadLineAsync(cancellationToken);
+
+                string? headerLine;
+                do
+                {
+                    headerLine = await reader.ReadLineAsync(cancellationToken);
+                }
+                while (!string.IsNullOrEmpty(headerLine));
+
+                if (!TryGetSequenceId(requestLine, out var sequenceId))
+                {
+                    await WriteErrorAsync(stream, HttpStatusCode.NotFound, cancellationToken);
+                    return;
+                }
+
+                var photo = _library.Photos.FirstOrDefault(p => p.SequenceId == sequenceId);
+                if (photo is null || !File.Exists(photo.FilePath))
+                {
+                    await WriteErrorAsync(stream, HttpStatusCode.NotFound, cancellationToken);
+                    return;
+                }
+
+                var safeFileName = photo.FileName.Replace("\"", "'").Replace("\r", "").Replace("\n", "");
+                await using var photoStream = new FileStream(
+                    photo.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+                    bufferSize: 81920, useAsync: true);
+
+                var headers =
+                    "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: image/jpeg\r\n" +
+                    $"Content-Disposition: attachment; filename=\"{safeFileName}\"\r\n" +
+                    $"Content-Length: {photoStream.Length}\r\n" +
+                    "Connection: close\r\n\r\n";
+
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
+                await photoStream.CopyToAsync(stream, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                PhotoDownloaded?.Invoke();
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
             {
+                // Telefon przerwał połączenie albo serwer jest właśnie zatrzymywany.
             }
         }
+    }
+
+    private static bool TryGetSequenceId(string? requestLine, out long sequenceId)
+    {
+        sequenceId = 0;
+        if (string.IsNullOrWhiteSpace(requestLine))
+        {
+            return false;
+        }
+
+        var parts = requestLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2 || !string.Equals(parts[0], "GET", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        const string prefix = "/photo/";
+        var path = parts[1].Split('?', 2)[0];
+        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               long.TryParse(path[prefix.Length..].TrimEnd('/'), out sequenceId);
+    }
+
+    private static async Task WriteErrorAsync(NetworkStream stream, HttpStatusCode statusCode, CancellationToken cancellationToken)
+    {
+        var reason = statusCode == HttpStatusCode.NotFound ? "Not Found" : "Bad Request";
+        var body = Encoding.UTF8.GetBytes(reason);
+        var headers =
+            $"HTTP/1.1 {(int)statusCode} {reason}\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n" +
+            $"Content-Length: {body.Length}\r\n" +
+            "Connection: close\r\n\r\n";
+
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
+        await stream.WriteAsync(body, cancellationToken);
     }
 
     public void Dispose() => Stop();
