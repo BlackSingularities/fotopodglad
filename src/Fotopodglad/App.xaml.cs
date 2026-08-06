@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Forms;
 using System.Windows.Interop;
 using Fotopodglad.Configuration;
 using Fotopodglad.Helpers;
@@ -11,6 +10,7 @@ using Fotopodglad.Services.GuestGallery;
 using Fotopodglad.ViewModels;
 using Fotopodglad.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
@@ -222,40 +222,39 @@ public partial class App : Application
 
     private static string? PromptForFolder(AppSettings settings)
     {
-        using var dialog = new FolderBrowserDialog
+        var dialog = new OpenFolderDialog
         {
-            Description = "Wybierz folder, do którego karta WiFi aparatu zapisuje zdjęcia",
-            UseDescriptionForTitle = true,
-            ShowNewFolderButton = true
+            Title = "Wybierz folder, do którego karta WiFi aparatu zapisuje zdjęcia",
+            Multiselect = false
         };
 
         if (settings.WatchedFolderPath is { } lastPath && Directory.Exists(lastPath))
         {
-            dialog.SelectedPath = lastPath;
+            dialog.InitialDirectory = lastPath;
         }
 
-        return dialog.ShowDialog() == DialogResult.OK ? dialog.SelectedPath : null;
+        // FolderBrowserDialog z WinForms potrafił zwrócić DialogResult.OK, ale pozostawić swoje
+        // natywne okno nad następnym komunikatem. OpenFolderDialog należy do WPF, a jawny owner
+        // gwarantuje poprawną modalność, kolejność Z i zamknięcie okna przed dalszym startem aplikacji.
+        var owner = CreateTransientDialogOwner();
+        try
+        {
+            owner.Show();
+            owner.Activate();
+            return dialog.ShowDialog(owner) == true ? dialog.FolderName : null;
+        }
+        finally
+        {
+            owner.Close();
+        }
     }
 
     private bool PromptToChangeSettings()
     {
-        // Po zamknięciu FolderBrowserDialog Windows nie zawsze oddaje fokus aplikacji WPF.
+        // Po zamknięciu systemowego wyboru folderu Windows nie zawsze oddaje fokus aplikacji WPF.
         // MessageBox bez właściciela jest wtedy widoczny dopiero po kliknięciu aplikacji na pasku zadań.
         // Niewidoczne, aktywowane okno-właściciel wymusza pokazanie pytania od razu na pierwszym planie.
-        var owner = new Window
-        {
-            Width = 1,
-            Height = 1,
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
-            ShowActivated = true,
-            AllowsTransparency = true,
-            Background = System.Windows.Media.Brushes.Transparent,
-            Opacity = 0,
-            Topmost = true,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen
-        };
+        var owner = CreateTransientDialogOwner();
 
         try
         {
@@ -275,6 +274,21 @@ public partial class App : Application
             owner.Close();
         }
     }
+
+    private static Window CreateTransientDialogOwner() => new()
+    {
+        Width = 1,
+        Height = 1,
+        WindowStyle = WindowStyle.None,
+        ResizeMode = ResizeMode.NoResize,
+        ShowInTaskbar = false,
+        ShowActivated = true,
+        AllowsTransparency = true,
+        Background = System.Windows.Media.Brushes.Transparent,
+        Opacity = 0,
+        Topmost = true,
+        WindowStartupLocation = WindowStartupLocation.CenterScreen
+    };
 
     private static void ConfigureServices(ServiceCollection services, AppSettings settings)
     {
