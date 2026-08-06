@@ -14,6 +14,14 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void Defaults_ShowPhotoParameters()
+    {
+        var settings = new AppSettings();
+
+        Assert.True(settings.ShowPhotoParameters);
+    }
+
+    [Fact]
     public void ManualPreviewMaximum_IsFifteenMinutes()
     {
         Assert.Equal(900, AppSettings.MaxManualHoldSeconds);

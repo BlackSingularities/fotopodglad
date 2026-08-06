@@ -7,8 +7,7 @@ public sealed class ExifData
     public double? ExposureTimeSeconds { get; init; }
     public int? Iso { get; init; }
     public double? FocalLengthMm { get; init; }
-    public string? ExposureMode { get; init; }
-    public string? WhiteBalance { get; init; }
+    public string? ExposureProgram { get; init; }
     public int PixelWidth { get; init; }
     public int PixelHeight { get; init; }
     public long FileSizeBytes { get; init; }

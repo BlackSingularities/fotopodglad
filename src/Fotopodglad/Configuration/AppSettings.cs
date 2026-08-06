@@ -21,6 +21,9 @@ public sealed class AppSettings
 
     public int GridColumnCount { get; set; } = 6;
 
+    /// <summary>Czy na podglądzie zdjęcia wyświetlać panel z nazwą pliku i parametrami EXIF.</summary>
+    public bool ShowPhotoParameters { get; set; } = true;
+
     /// <summary>Rozmiar boku każdego kodu QR w pikselach interfejsu (DIP).</summary>
     public int QrCodeSize { get; set; } = 160;
 

@@ -30,11 +30,15 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     [ObservableProperty]
     private PreviewMode mode = PreviewMode.Auto;
 
+    [ObservableProperty]
+    private bool showPhotoParameters;
+
     public ObservableCollection<ExifFieldViewModel> ExifFields { get; } = new();
 
     public FullscreenPhotoViewModel(IPhotoLibraryService library, AppSettings settings)
     {
         _library = library;
+        showPhotoParameters = settings.ShowPhotoParameters;
         var manualHoldDuration = TimeSpan.FromSeconds(Math.Clamp(
             settings.ManualHoldSeconds,
             AppSettings.MinManualHoldSeconds,
@@ -142,14 +146,9 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
             ExifFields.Add(new ExifFieldViewModel("Icon.FocalLength", $"{focalLength.ToString("0.#", CultureInfo.InvariantCulture)} mm"));
         }
 
-        if (exif.ExposureMode is { } exposureMode)
+        if (exif.ExposureProgram is { } exposureProgram)
         {
-            ExifFields.Add(new ExifFieldViewModel("Icon.ExposureMode", exposureMode));
-        }
-
-        if (exif.WhiteBalance is { } whiteBalance)
-        {
-            ExifFields.Add(new ExifFieldViewModel("Icon.WhiteBalance", whiteBalance));
+            ExifFields.Add(new ExifFieldViewModel("Icon.ExposureProgram", exposureProgram));
         }
 
         if (exif.PixelWidth > 0 && exif.PixelHeight > 0)

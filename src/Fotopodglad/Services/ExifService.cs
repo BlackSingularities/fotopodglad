@@ -18,8 +18,7 @@ public sealed class ExifService : IExifService
     private const string QueryIso = "/app1/ifd/exif/{ushort=34855}";
     private const string QueryFocalLength = "/app1/ifd/exif/{ushort=37386}";
     private const string QueryDateTimeOriginal = "/app1/ifd/exif/{ushort=36867}";
-    private const string QueryExposureMode = "/app1/ifd/exif/{ushort=41986}";
-    private const string QueryWhiteBalance = "/app1/ifd/exif/{ushort=41987}";
+    private const string QueryExposureProgram = "/app1/ifd/exif/{ushort=34850}";
     private const string QueryOrientation = "/app1/ifd/{ushort=274}";
 
     public Task<ExifData> ExtractAsync(string filePath, CancellationToken cancellationToken = default)
@@ -32,8 +31,7 @@ public sealed class ExifService : IExifService
         double? aperture = null, exposureTime = null, focalLength = null;
         int? iso = null;
         DateTime? dateTaken = null;
-        string? exposureMode = null;
-        string? whiteBalance = null;
+        string? exposureProgram = null;
 
         try
         {
@@ -50,8 +48,7 @@ public sealed class ExifService : IExifService
                 focalLength = TryGetDouble(metadata, QueryFocalLength);
                 iso = TryGetInt(metadata, QueryIso);
                 dateTaken = TryGetDateTime(metadata, QueryDateTimeOriginal);
-                exposureMode = TryGetExposureModeLabel(metadata);
-                whiteBalance = TryGetWhiteBalanceLabel(metadata);
+                exposureProgram = GetExposureProgramLabel(TryGetInt(metadata, QueryExposureProgram));
             }
         }
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException or IOException)
@@ -60,12 +57,13 @@ public sealed class ExifService : IExifService
             // ale nie chcemy wywrócić całej biblioteki zdjęć przez jeden zły plik.
         }
 
-        if (aperture is null || exposureTime is null || focalLength is null || iso is null || dateTaken is null || orientation is null)
+        if (aperture is null || exposureTime is null || focalLength is null || iso is null ||
+            dateTaken is null || exposureProgram is null || orientation is null)
         {
             TryFillFromMetadataExtractor(
                 filePath,
                 ref aperture, ref exposureTime, ref focalLength, ref iso, ref dateTaken,
-                ref exposureMode, ref whiteBalance, ref orientation);
+                ref exposureProgram, ref orientation);
         }
 
         (width, height) = ApplyOrientationToDimensions(width, height, orientation);
@@ -86,8 +84,7 @@ public sealed class ExifService : IExifService
             ExposureTimeSeconds = exposureTime,
             Iso = iso,
             FocalLengthMm = focalLength,
-            ExposureMode = exposureMode,
-            WhiteBalance = whiteBalance,
+            ExposureProgram = exposureProgram,
             PixelWidth = width,
             PixelHeight = height,
             FileSizeBytes = fileSize
@@ -97,8 +94,7 @@ public sealed class ExifService : IExifService
     private static void TryFillFromMetadataExtractor(
         string filePath,
         ref double? aperture, ref double? exposureTime, ref double? focalLength,
-        ref int? iso, ref DateTime? dateTaken, ref string? exposureMode, ref string? whiteBalance,
-        ref int? orientation)
+        ref int? iso, ref DateTime? dateTaken, ref string? exposureProgram, ref int? orientation)
     {
         try
         {
@@ -112,6 +108,9 @@ public sealed class ExifService : IExifService
                 focalLength ??= subIfd.TryGetDouble(ExifDirectoryBase.TagFocalLength, out var fl) ? fl : null;
                 iso ??= subIfd.TryGetInt32(ExifDirectoryBase.TagIsoEquivalent, out var isoVal) ? isoVal : null;
                 dateTaken ??= subIfd.TryGetDateTime(ExifDirectoryBase.TagDateTimeOriginal, out var dt) ? dt : null;
+                exposureProgram ??= subIfd.TryGetInt32(ExifDirectoryBase.TagExposureProgram, out var program)
+                    ? GetExposureProgramLabel(program)
+                    : null;
 
                 if (exposureTime is null && subIfd.TryGetRational(ExifDirectoryBase.TagExposureTime, out var rational))
                 {
@@ -212,25 +211,15 @@ public sealed class ExifService : IExifService
         return null;
     }
 
-    private static string? TryGetExposureModeLabel(BitmapMetadata metadata)
+    internal static string? GetExposureProgramLabel(int? code)
     {
-        var code = TryGetInt(metadata, QueryExposureMode);
         return code switch
         {
-            0 => "Auto",
-            1 => "Manualny",
-            2 => "Auto bracket",
-            _ => null
-        };
-    }
-
-    private static string? TryGetWhiteBalanceLabel(BitmapMetadata metadata)
-    {
-        var code = TryGetInt(metadata, QueryWhiteBalance);
-        return code switch
-        {
-            0 => "Auto",
-            1 => "Manualny",
+            1 => "M",
+            2 => "P",
+            3 => "A",
+            4 => "S",
+            5 or 6 or 7 or 8 => "P",
             _ => null
         };
     }

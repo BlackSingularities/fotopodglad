@@ -41,6 +41,7 @@ public partial class SettingsWindow : Window
         WifiSsidTextBox.Text = settings.WifiSsid ?? string.Empty;
         WifiPasswordBox.Password = settings.WifiPassphrase ?? string.Empty;
         GuestAccessEnabledCheckBox.IsChecked = settings.GuestAccessEnabled;
+        ShowPhotoParametersCheckBox.IsChecked = settings.ShowPhotoParameters;
         GridColumnsTextBox.Text = settings.GridColumnCount.ToString(CultureInfo.InvariantCulture);
         ManualHoldTextBox.Text = settings.ManualHoldSeconds.ToString(CultureInfo.InvariantCulture);
         QrSizeSlider.Value = Math.Clamp(settings.QrCodeSize, 96, 320);
@@ -87,6 +88,7 @@ public partial class SettingsWindow : Window
         }
 
         _settings.GuestAccessEnabled = GuestAccessEnabledCheckBox.IsChecked == true;
+        _settings.ShowPhotoParameters = ShowPhotoParametersCheckBox.IsChecked == true;
         _settings.WifiSsid = string.IsNullOrWhiteSpace(wifiSsid) ? null : wifiSsid;
         _settings.WifiPassphrase = string.IsNullOrWhiteSpace(wifiPassphrase) ? null : wifiPassphrase;
         _settings.GridColumnCount = columns;
