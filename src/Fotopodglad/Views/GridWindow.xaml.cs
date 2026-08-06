@@ -23,7 +23,7 @@ public partial class GridWindow : Window
         grid.PhotoClicked += photo => viewModel.OnPhotoClicked(photo);
         GridHost.Children.Add(grid);
 
-        var guestSidebar = new GuestAccessSidebar { DataContext = guestAccess };
+        var guestSidebar = new GuestAccessSidebar(settings) { DataContext = guestAccess };
         GuestSidebarHost.Children.Add(guestSidebar);
     }
 

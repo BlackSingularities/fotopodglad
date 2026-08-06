@@ -15,6 +15,9 @@ public sealed class AppSettings
 
     public int GridColumnCount { get; set; } = 6;
 
+    /// <summary>Rozmiar boku każdego kodu QR w pikselach interfejsu (DIP).</summary>
+    public int QrCodeSize { get; set; } = 160;
+
     /// <summary>Ile sekund minimum trzymać ręcznie wybrane zdjęcie (Okno B), zanim wróci "zawsze najnowsze".</summary>
     public double ManualHoldSeconds { get; set; } = 10;
 

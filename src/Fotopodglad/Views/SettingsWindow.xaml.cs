@@ -27,6 +27,11 @@ public partial class SettingsWindow : Window
         MainViewScreenComboBox.SelectedIndex = ClampScreenIndex(settings.MainViewScreenIndex);
         GridScreenComboBox.SelectedIndex = ClampScreenIndex(settings.GridScreenIndex);
 
+        if (_screens.Count > 1 && GridScreenComboBox.SelectedIndex == MainViewScreenComboBox.SelectedIndex)
+        {
+            GridScreenComboBox.SelectedIndex = (MainViewScreenComboBox.SelectedIndex + 1) % _screens.Count;
+        }
+
         if (_screens.Count <= 1)
         {
             MainViewScreenComboBox.IsEnabled = false;
@@ -34,9 +39,10 @@ public partial class SettingsWindow : Window
         }
 
         WifiSsidTextBox.Text = settings.WifiSsid ?? string.Empty;
-        WifiPasswordTextBox.Text = settings.WifiPassphrase ?? string.Empty;
+        WifiPasswordBox.Password = settings.WifiPassphrase ?? string.Empty;
         GridColumnsTextBox.Text = settings.GridColumnCount.ToString(CultureInfo.InvariantCulture);
         ManualHoldTextBox.Text = settings.ManualHoldSeconds.ToString(CultureInfo.InvariantCulture);
+        QrSizeSlider.Value = Math.Clamp(settings.QrCodeSize, 96, 320);
 
         AuthorTextBlock.Text = "Adam Rędzikowski";
     }
@@ -46,7 +52,13 @@ public partial class SettingsWindow : Window
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var wifiSsid = WifiSsidTextBox.Text.Trim();
-        var wifiPassphrase = WifiPasswordTextBox.Text.Trim();
+        var wifiPassphrase = WifiPasswordBox.Password.Trim();
+
+        if (_screens.Count > 1 && MainViewScreenComboBox.SelectedIndex == GridScreenComboBox.SelectedIndex)
+        {
+            MessageBox.Show(this, "Wybierz różne ekrany dla podglądu i siatki zdjęć.", "Te same ekrany", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         if (wifiSsid.Length > 32)
         {
@@ -76,11 +88,20 @@ public partial class SettingsWindow : Window
         _settings.WifiPassphrase = string.IsNullOrWhiteSpace(wifiPassphrase) ? null : wifiPassphrase;
         _settings.GridColumnCount = columns;
         _settings.ManualHoldSeconds = holdSeconds;
+        _settings.QrCodeSize = (int)Math.Round(QrSizeSlider.Value);
         _settings.MainViewScreenIndex = MainViewScreenComboBox.SelectedIndex;
         _settings.GridScreenIndex = GridScreenComboBox.SelectedIndex;
 
         DialogResult = true;
         Close();
+    }
+
+    private void OnQrSizeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (QrSizeValueTextBlock is not null)
+        {
+            QrSizeValueTextBlock.Text = $"{Math.Round(e.NewValue):0}";
+        }
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
