@@ -54,9 +54,11 @@ public partial class App : Application
         if (wantsToChangeSettings)
         {
             var settingsWindow = new SettingsWindow(settings, screens);
-            settingsWindow.ShowDialog();
-            // Niezależnie od wyniku (Zapisz/Anuluj) startujemy dalej — SettingsWindow modyfikuje `settings`
-            // w miejscu tylko gdy użytkownik kliknie "Zapisz i uruchom".
+            if (settingsWindow.ShowDialog() == true &&
+                settings.WatchedFolderPath is { } configuredFolder && Directory.Exists(configuredFolder))
+            {
+                folderPath = configuredFolder;
+            }
         }
 
         settings.Save();
@@ -262,7 +264,7 @@ public partial class App : Application
 
             return MessageBox.Show(
                 owner,
-                "Czy chcesz zmienić ustawienia (ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
+                "Czy chcesz zmienić ustawienia (folder zdjęć, ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
                 "Fotopodgląd — ustawienia",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question,
