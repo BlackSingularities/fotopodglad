@@ -44,7 +44,9 @@ public partial class App : Application
         _settings = settings;
         AppearanceService.Apply(settings);
         var isRestart = e.Args.Any(arg => string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase));
-        var folderPath = isRestart && settings.WatchedFolderPath is { } savedFolder && Directory.Exists(savedFolder)
+        // Zapisany i nadal dostępny folder jest używany bez ponownego otwierania systemowego selektora.
+        // Okno wyboru pokazujemy wyłącznie przy pierwszym uruchomieniu albo po utracie zapisanej ścieżki.
+        var folderPath = settings.WatchedFolderPath is { } savedFolder && Directory.Exists(savedFolder)
             ? savedFolder
             : PromptForFolder(settings);
         if (folderPath is null)

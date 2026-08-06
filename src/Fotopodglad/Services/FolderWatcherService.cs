@@ -51,7 +51,9 @@ public sealed class FolderWatcherService : IFolderWatcherService
 
         // Najpierw robimy migawkę zaległości i oznaczamy ją jako znaną. Dzięki temu zdarzenia watchera
         // nie wyślą tych samych plików drugi raz, gdy jest uruchamiany równolegle ze skanem startowym.
-        var backlog = EnumerateSupportedFiles(folderPath).ToList();
+        var backlog = EnumerateSupportedFiles(folderPath)
+            .OrderByDescending(GetLastWriteTimeUtcSafe)
+            .ToList();
 
         lock (_knownFilesLock)
         {
@@ -168,15 +170,16 @@ public sealed class FolderWatcherService : IFolderWatcherService
     {
         try
         {
-            // Nie tworzymy kilku tysięcy zadań jednocześnie. Ograniczona pula utrzymuje płynność
-            // startu i przewidywalne użycie pamięci również przy bardzo dużych sesjach.
+            // Starsze pliki z migawki startowej są już kompletne — wystarcza szybka próba otwarcia.
+            // Pełne sprawdzanie stabilności zostawiamy tylko dla plików właśnie zapisywanych.
             await Parallel.ForEachAsync(existing, new ParallelOptions
             {
                 CancellationToken = cancellationToken,
-                MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8)
+                MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount * 2, 4, 32)
             }, async (path, token) =>
             {
-                if (await FileStabilityChecker.WaitUntilStableAsync(path, TimeSpan.FromSeconds(15), token))
+                if (IsCompletedBacklogFile(path) ||
+                    await FileStabilityChecker.WaitUntilStableAsync(path, TimeSpan.FromSeconds(15), token))
                 {
                     PhotoReady?.Invoke(path, true);
                 }
@@ -192,6 +195,31 @@ public sealed class FolderWatcherService : IFolderWatcherService
         }
 
         InitialScanCompleted?.Invoke();
+    }
+
+    private static bool IsCompletedBacklogFile(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length <= 0 || DateTime.UtcNow - info.LastWriteTimeUtc < TimeSpan.FromSeconds(2))
+            {
+                return false;
+            }
+
+            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return stream.Length > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static DateTime GetLastWriteTimeUtcSafe(string path)
+    {
+        try { return File.GetLastWriteTimeUtc(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return DateTime.MinValue; }
     }
 
     private async Task PollFallbackLoopAsync(string folderPath, CancellationToken cancellationToken)

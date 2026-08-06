@@ -71,6 +71,24 @@ public sealed class FolderWatcherServiceTests : IDisposable
         Assert.Same(scanCompleted.Task, completed);
     }
 
+    [Fact]
+    public async Task InitialScan_DoesNotRestabilizeEveryOldFileSerially()
+    {
+        for (var i = 0; i < 48; i++)
+        {
+            var path = Path.Combine(_tempFolder, $"old-{i:000}.jpg");
+            await File.WriteAllBytesAsync(path, new byte[2048]);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(-5));
+        }
+
+        var scanCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _watcher.InitialScanCompleted += () => scanCompleted.TrySetResult();
+        _watcher.Start(_tempFolder);
+
+        var completed = await Task.WhenAny(scanCompleted.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+        Assert.Same(scanCompleted.Task, completed);
+    }
+
     [Theory]
     [InlineData(".arw")]
     [InlineData(".nef")]

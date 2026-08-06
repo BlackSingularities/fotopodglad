@@ -28,7 +28,7 @@ public sealed class WindowsHotspotService : IHotspotService
     public string? FailureReason { get; private set; }
     public HotspotFailureKind FailureKind { get; private set; }
     public bool IsActive => _tetheringManager?.TetheringOperationalState == TetheringOperationalState.On &&
-                            LocalIpAddress is not null;
+                            LocalIpAddress is not null && DetectHotspotLocalIp() is not null;
 
     public WindowsHotspotService(AppSettings settings)
     {
@@ -246,6 +246,7 @@ public sealed class WindowsHotspotService : IHotspotService
     /// </summary>
     private static string? DetectHotspotLocalIp()
     {
+        string? fallback = null;
         foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (ni.OperationalStatus != OperationalStatus.Up)
@@ -258,12 +259,17 @@ public sealed class WindowsHotspotService : IHotspotService
                 var ip = addr.Address.ToString();
                 if (ip.StartsWith("192.168.137.", StringComparison.Ordinal))
                 {
-                    return ip;
+                    if (string.Equals(ip, "192.168.137.1", StringComparison.Ordinal))
+                    {
+                        return ip;
+                    }
+
+                    fallback ??= ip;
                 }
             }
         }
 
-        return null;
+        return fallback;
     }
 
     private static async Task<string?> WaitForHotspotLocalIpAsync(CancellationToken cancellationToken)
