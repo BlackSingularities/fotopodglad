@@ -7,6 +7,7 @@ public interface IHotspotService
 
     /// <summary>Adres IP komputera w sieci hotspotu (zwykle 192.168.137.1 dla Windows Mobile Hotspot / ICS).</summary>
     string? LocalIpAddress { get; }
+    string? FailureReason { get; }
 
     /// <summary>
     /// Próbuje uruchomić izolowany hotspot z losowym SSID/hasłem. Zwraca false, jeśli sprzęt/sterownik

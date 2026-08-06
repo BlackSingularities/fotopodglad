@@ -215,11 +215,14 @@ public sealed class ExifService : IExifService
     {
         return code switch
         {
-            1 => "M",
-            2 => "P",
-            3 => "A",
-            4 => "S",
-            5 or 6 or 7 or 8 => "P",
+            1 => "Tryb ręczny",
+            2 => "Program automatyczny",
+            3 => "Priorytet przysłony",
+            4 => "Priorytet migawki",
+            5 => "Program kreatywny",
+            6 => "Program sportowy",
+            7 => "Program portretowy",
+            8 => "Program krajobrazowy",
             _ => null
         };
     }
