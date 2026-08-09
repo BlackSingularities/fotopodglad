@@ -31,7 +31,10 @@ public sealed class AppSettings
     /// <summary>Rozmiar boku każdego kodu QR w pikselach interfejsu (DIP).</summary>
     public int QrCodeSize { get; set; } = 160;
 
-    /// <summary>Ile sekund minimum trzymać ręcznie wybrane zdjęcie (Okno B), zanim wróci "zawsze najnowsze".</summary>
+    /// <summary>Czy podgląd ma automatycznie przełączać się na najnowsze zdjęcie.</summary>
+    public bool AutomaticallyShowLatestPhoto { get; set; }
+
+    /// <summary>Ile sekund trzymać ręcznie wybrane zdjęcie przed powrotem do najnowszego, gdy automatyczny podgląd jest włączony.</summary>
     public double ManualHoldSeconds { get; set; } = 10;
 
     /// <summary>Indeks ekranu (z IScreenService.GetScreens()) dla Okna A — podgląd najnowszego zdjęcia.</summary>
@@ -88,6 +91,7 @@ public sealed class AppSettings
         GridColumnCount = source.GridColumnCount;
         ShowPhotoParameters = source.ShowPhotoParameters;
         QrCodeSize = source.QrCodeSize;
+        AutomaticallyShowLatestPhoto = source.AutomaticallyShowLatestPhoto;
         ManualHoldSeconds = source.ManualHoldSeconds;
         MainViewScreenIndex = source.MainViewScreenIndex;
         GridScreenIndex = source.GridScreenIndex;

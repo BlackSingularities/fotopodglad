@@ -12,8 +12,8 @@ namespace Fotopodglad.ViewModels;
 
 /// <summary>
 /// VM reużywalnej kontrolki pełnoekranowego podglądu (Controls/FullscreenPhotoView), używanej zarówno
-/// w Oknie A. Domyślnie pokazuje najnowsze zdjęcie; kliknięcie miniatury w Oknie B przełącza je
-/// tymczasowo w tryb Manual, a po settings.ManualHoldSeconds wraca do najnowszego zdjęcia.
+/// w Oknie A. Domyślnie pokazuje wyłącznie zdjęcie wskazane przez użytkownika. Opcjonalny tryb
+/// automatyczny śledzi najnowsze zdjęcie, z czasowym zatrzymaniem po kliknięciu miniatury.
 /// </summary>
 public sealed partial class FullscreenPhotoViewModel : ViewModelBase
 {
@@ -21,6 +21,7 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     private readonly AppSettings _settings;
     private readonly IExifService _exifService;
     private readonly DispatcherTimer _manualHoldTimer;
+    private bool _automaticallyShowLatestPhoto;
     private int _loadToken;
     private CancellationTokenSource? _imageLoadCts;
     private CancellationTokenSource? _analysisCts;
@@ -35,7 +36,7 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     private BitmapImage? currentImageSource;
 
     [ObservableProperty]
-    private PreviewMode mode = PreviewMode.Auto;
+    private PreviewMode mode = PreviewMode.Manual;
 
     [ObservableProperty]
     private bool showPhotoParameters;
@@ -55,6 +56,7 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     {
         _library = library;
         _settings = settings;
+        _automaticallyShowLatestPhoto = settings.AutomaticallyShowLatestPhoto;
         _exifService = exifService ?? new ExifService();
         showPhotoParameters = settings.ShowPhotoParameters;
         exifTextSize = settings.ExifTextSize * AppearanceService.ScaleFactor(settings);
@@ -66,22 +68,29 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         _manualHoldTimer.Tick += (_, _) =>
         {
             _manualHoldTimer.Stop();
-            ShowLatestAutomatically();
+            if (_automaticallyShowLatestPhoto)
+            {
+                ShowLatestAutomatically();
+            }
         };
 
         _library.NewestChanged += OnNewestChanged;
         _settings.Changed += OnSettingsChanged;
 
-        if (_library.Latest is { } latest)
+        if (_automaticallyShowLatestPhoto)
         {
-            SetPhoto(latest);
+            Mode = PreviewMode.Auto;
+            if (_library.Latest is { } latest)
+            {
+                SetPhoto(latest);
+            }
         }
     }
 
     public void ShowLatestAutomatically()
     {
         _manualHoldTimer.Stop();
-        Mode = PreviewMode.Auto;
+        Mode = _automaticallyShowLatestPhoto ? PreviewMode.Auto : PreviewMode.Manual;
         if (_library.Latest is { } latest)
         {
             SetPhoto(latest);
@@ -93,7 +102,10 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         Mode = PreviewMode.Manual;
         SetPhoto(photo);
         _manualHoldTimer.Stop();
-        _manualHoldTimer.Start();
+        if (_automaticallyShowLatestPhoto)
+        {
+            _manualHoldTimer.Start();
+        }
     }
 
     private void OnSettingsChanged(object? sender, EventArgs e)
@@ -104,6 +116,27 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
             _settings.ManualHoldSeconds,
             AppSettings.MinManualHoldSeconds,
             AppSettings.MaxManualHoldSeconds));
+
+        var automaticallyShowLatestPhoto = _settings.AutomaticallyShowLatestPhoto;
+        if (_automaticallyShowLatestPhoto != automaticallyShowLatestPhoto)
+        {
+            _automaticallyShowLatestPhoto = automaticallyShowLatestPhoto;
+            _manualHoldTimer.Stop();
+
+            if (!_automaticallyShowLatestPhoto)
+            {
+                Mode = PreviewMode.Manual;
+            }
+            else if (CurrentPhoto is null)
+            {
+                ShowLatestAutomatically();
+            }
+            else
+            {
+                Mode = PreviewMode.Manual;
+                _manualHoldTimer.Start();
+            }
+        }
 
         if (CurrentImageSource is { } source)
         {
@@ -137,8 +170,8 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         {
             SetPhoto(newest);
         }
-        // W trybie Manual ignorujemy napływające zdjęcia aż do wygaśnięcia _manualHoldTimer —
-        // to realizuje wymóg "trzymaj wybrane zdjęcie min. 10s mimo nowszych".
+        // W trybie ręcznym napływające zdjęcia nie zmieniają podglądu. Jeżeli automatyczne
+        // śledzenie jest włączone, powrót nastąpi dopiero po wygaśnięciu timera.
     }
 
     private void SetPhoto(PhotoItem photo)
