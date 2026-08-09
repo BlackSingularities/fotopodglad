@@ -109,11 +109,13 @@
 
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
                             <TextBlock Text="Galeria i podgląd" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="AutomaticallyShowLatestPhotoCheckBox" Content="Automatycznie pokazuj najnowsze zdjęcie" Margin="0,0,0,8"/>
+                            <TextBlock Text="Po wybraniu zdjęcia z galerii automatyczny podgląd wznowi się po ustawionym czasie. Gdy opcja jest wyłączona, wybrane zdjęcie pozostaje na ekranie." Style="{StaticResource HintText}" Margin="0,0,0,12"/>
                             <CheckBox x:Name="ShowPhotoParametersCheckBox" Content="Pokazuj nazwę i parametry EXIF" Margin="0,0,0,10"/>
                             <CheckBox x:Name="ShowClippingWarningsCheckBox" Content="Oznaczaj przepalenia na czerwono i niedoświetlenia na niebiesko" Margin="0,0,0,14"/>
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel><TextBlock Text="Kolumny siatki" Style="{StaticResource FieldLabel}"/><TextBox x:Name="GridColumnsTextBox"/></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Czas podglądu (s)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ManualHoldTextBox"/></StackPanel>
+                                <StackPanel Grid.Column="2" IsEnabled="{Binding IsChecked, ElementName=AutomaticallyShowLatestPhotoCheckBox}"><TextBlock Text="Czas wybranego zdjęcia (s)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ManualHoldTextBox"/></StackPanel>
                                 <StackPanel Grid.Column="4"><TextBlock Text="Histogram" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="HistogramComboBox"/></StackPanel>
                             </Grid>
                             <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -208,7 +210,7 @@
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <Border Background="{DynamicResource Brush.Control}" CornerRadius="8" Padding="13">
                                 <StackPanel><TextBlock Text="Okno A — podgląd" Style="{StaticResource AboutFeatureTitle}"/>
-                                    <TextBlock Text="Pokazuje wybrane albo najnowsze zdjęcie w dużym formacie. Może wyświetlać EXIF, histogram oraz ostrzeżenia o przepaleniach i niedoświetleniach." Style="{StaticResource AboutBody}"/>
+                                    <TextBlock Text="Pokazuje wybrane zdjęcie w dużym formacie. Opcjonalnie może automatycznie śledzić najnowsze pliki, zachowując ustawiony czas na obejrzenie ręcznie wybranego zdjęcia. Wyświetla też EXIF, histogram i ostrzeżenia ekspozycji." Style="{StaticResource AboutBody}"/>
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="2" Background="{DynamicResource Brush.Control}" CornerRadius="8" Padding="13">
@@ -234,7 +236,7 @@
 
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
                         <TextBlock Text="Szybkość i niezawodność" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="• Najpierw ładowane są zdjęcia widoczne na ekranie i najnowszy podgląd.&#x0a;• Aplikacja korzysta z miniaturek osadzonych w plikach, gdy są dostępne.&#x0a;• EXIF i cięższe dekodowanie są wykonywane dopiero wtedy, gdy są potrzebne.&#x0a;• Nieaktualne operacje są anulowane podczas szybkiego przechodzenia między zdjęciami.&#x0a;• Pamięć podręczna ma regulowany limit i usuwa najstarsze elementy.&#x0a;• Po utracie dysku lub folderu obserwowanie zostaje automatycznie wznowione po jego powrocie." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="• Najpierw ładowane są zdjęcia widoczne na ekranie oraz wybrany podgląd.&#x0a;• Aplikacja korzysta z miniaturek osadzonych w plikach, gdy są dostępne.&#x0a;• EXIF i cięższe dekodowanie są wykonywane dopiero wtedy, gdy są potrzebne.&#x0a;• Nieaktualne operacje są anulowane podczas szybkiego przechodzenia między zdjęciami.&#x0a;• Pamięć podręczna ma regulowany limit i usuwa najstarsze elementy.&#x0a;• Po utracie dysku lub folderu obserwowanie zostaje automatycznie wznowione po jego powrocie." Style="{StaticResource AboutBody}"/>
                     </StackPanel></Border>
 
                     <Border Style="{StaticResource SectionCard}"><StackPanel>

@@ -609,7 +609,7 @@ public partial class App : Application
 
             return MessageBox.Show(
                 owner,
-                "Czy chcesz zmienić ustawienia (folder zdjęć, ekrany, WiFi dla gości, liczba kolumn siatki, czas podglądu wybranego zdjęcia)?",
+                "Czy chcesz zmienić ustawienia (folder zdjęć, ekrany, automatyczny podgląd, WiFi dla gości, siatka zdjęć)?",
                 ApplicationVersion.CreateWindowTitle("ustawienia"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question,

@@ -31,6 +31,14 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void Defaults_KeepSelectedPhotoInsteadOfFollowingLatest()
+    {
+        var settings = new AppSettings();
+
+        Assert.False(settings.AutomaticallyShowLatestPhoto);
+    }
+
+    [Fact]
     public void ManualPreviewMaximum_IsFifteenMinutes()
     {
         Assert.Equal(900, AppSettings.MaxManualHoldSeconds);

@@ -87,6 +87,7 @@ public partial class SettingsWindow : Window
         GridScreenComboBox.SelectedIndex = ClampScreenIndex(_draft.GridScreenIndex);
         WindowModeComboBox.SelectedIndex = (int)_draft.WindowMode;
         WatchedFolderTextBox.Text = _draft.WatchedFolderPath ?? string.Empty;
+        AutomaticallyShowLatestPhotoCheckBox.IsChecked = _draft.AutomaticallyShowLatestPhoto;
         ShowPhotoParametersCheckBox.IsChecked = _draft.ShowPhotoParameters;
         ShowClippingWarningsCheckBox.IsChecked = _draft.ShowClippingWarnings;
         GridColumnsTextBox.Text = _draft.GridColumnCount.ToString(CultureInfo.InvariantCulture);
@@ -154,6 +155,7 @@ public partial class SettingsWindow : Window
         _draft.WindowMode = (WindowPresentationMode)Math.Max(0, WindowModeComboBox.SelectedIndex);
         _draft.MainViewScreenIndex = Math.Max(0, MainViewScreenComboBox.SelectedIndex);
         _draft.GridScreenIndex = Math.Max(0, GridScreenComboBox.SelectedIndex);
+        _draft.AutomaticallyShowLatestPhoto = AutomaticallyShowLatestPhotoCheckBox.IsChecked == true;
         _draft.ShowPhotoParameters = ShowPhotoParametersCheckBox.IsChecked == true;
         _draft.ShowClippingWarnings = ShowClippingWarningsCheckBox.IsChecked == true;
         _draft.GridColumnCount = columns;

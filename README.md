@@ -1,13 +1,13 @@
 # Fotopodgląd
 
-Aplikacja desktopowa (WPF, .NET 8) dla fotografa pracującego na dwóch monitorach podczas sesji zdjęciowej. Karta pamięci WiFi w aparacie zapisuje zdjęcia na bieżąco do wskazanego folderu na dysku — aplikacja obserwuje ten folder i pokazuje efekty sesji na żywo, bez żadnej dodatkowej interakcji.
+Aplikacja desktopowa (WPF, .NET 8) dla fotografa pracującego na dwóch monitorach podczas sesji zdjęciowej. Karta pamięci WiFi w aparacie zapisuje zdjęcia na bieżąco do wskazanego folderu na dysku — aplikacja obserwuje ten folder i od razu dodaje nowe pliki do galerii.
 
 ## Funkcje wersji 2.0
 
-- **Okno A (Ekran 1)** — pełnoekranowy, pozbawiony jakichkolwiek kontrolek podgląd zawsze najnowszego zdjęcia: nazwa pliku, godzina, parametry ekspozycji (przysłona, czas, ISO, ogniskowa i pełna nazwa programu ekspozycji), wymiary i rozmiar pliku — każde z osobną ikoną wektorową (bez emoji/fontów ikon). Możliwość przybliżania kółkiem myszy.
-- **Okno B (Ekran 2)** — pełnoekranowa, przewijana siatka równych kafelków 3:2 ze wszystkimi zdjęciami z sesji, najnowsze zawsze na górze. Miniatury są równo przycinane, a kliknięcie pokazuje wybrane zdjęcie w Oknie A przez ustawiony czas; siatka pozostaje cały czas widoczna.
+- **Okno A (Ekran 1)** — pełnoekranowy, pozbawiony kontrolek podgląd wybranego zdjęcia: nazwa pliku, godzina, parametry ekspozycji (przysłona, czas, ISO, ogniskowa i pełna nazwa programu ekspozycji), wymiary i rozmiar pliku — każde z osobną ikoną wektorową (bez emoji/fontów ikon). Wybrane zdjęcie domyślnie pozostaje na ekranie; w ustawieniach można włączyć automatyczne pokazywanie najnowszego zdjęcia. Możliwość przybliżania kółkiem myszy.
+- **Okno B (Ekran 2)** — pełnoekranowa, przewijana siatka równych kafelków 3:2 ze wszystkimi zdjęciami z sesji, najnowsze zawsze na górze. Miniatury są równo przycinane, a kliknięcie pokazuje wybrane zdjęcie w Oknie A; siatka pozostaje cały czas widoczna. Gdy automatyczny podgląd jest włączony, aplikacja wraca do najnowszego zdjęcia dopiero po ustawionym czasie.
 - **1 lub 2 monitory** — przy dwóch monitorach podgląd i siatka zajmują osobne ekrany. Przy jednym podgląd zajmuje górne 60%, a przewijana siatka dolne 40% szerokości ekranu. Panel QR pozostaje w prawym dolnym rogu.
-- **Rozbudowane ustawienia i diagnostyka** — `Ctrl+P` otwiera konfigurację folderu, ekranów, filtrów, histogramu, ostrzeżeń ekspozycji, cache, motywu, języka, skali UI, tekstu EXIF/instrukcji i pobierania. Osobna karta pokazuje stan hotspotu, adres IP, próby naprawy, błąd sterownika/AP+STA, aktywne pobrania i dostępność folderu. Zmiany wizualne są stosowane na żywo; restart następuje tylko dla folderu, ekranów lub hotspotu.
+- **Rozbudowane ustawienia i diagnostyka** — `Ctrl+P` otwiera konfigurację folderu, ekranów, automatycznego podglądu i czasu zatrzymania wybranego zdjęcia, filtrów, histogramu, ostrzeżeń ekspozycji, cache, motywu, języka, skali UI, tekstu EXIF/instrukcji i pobierania. Osobna karta pokazuje stan hotspotu, adres IP, próby naprawy, błąd sterownika/AP+STA, aktywne pobrania i dostępność folderu. Zmiany wizualne są stosowane na żywo; restart następuje tylko dla folderu, ekranów lub hotspotu.
 - **Pobieranie zdjęć na telefon gościa (opcjonalne)** — komputer tworzy odizolowany hotspot Wi‑Fi; dwa kody QR służą do dołączenia do sieci i pobrania dokładnie zdjęcia widocznego w podglądzie. Plik jest wysyłany w oryginalnej jakości, bez rekompresji. Limit równoległych pobrań chroni aplikację, start ma maksymalnie trzy kontrolowane próby, a po pięciu minutach bez pobierania hasło sesji jest zmieniane.
 - **Odporność na sprzęt** — utrata dysku/karty/folderu daje czytelne ostrzeżenie, a obserwowanie automatycznie wraca po odzyskaniu ścieżki. Odłączenie drugiego monitora przełącza aplikację na układ jednoekranowy. Pozycje okien są zapamiętywane.
 - **Narzędzia fotografa** — przełączany histogram jasności lub RGB, oznaczenia przepaleń i niedoświetleń, powiększenie do 100% dwuklikiem, ograniczone przesuwanie oraz pełne nazwy programów ekspozycji.
@@ -23,7 +23,7 @@ Gotowy, samodzielny plik `.exe` (nie wymaga instalowania .NET) jest dostępny w 
 
 > Plik pochodzi z internetu, więc Windows może go domyślnie zablokować (SmartScreen). Jeśli tak się stanie: kliknij prawym na plik → *Właściwości* → zaznacz *Odblokuj* → *OK*.
 
-Przy pierwszym uruchomieniu pojawi się okno wyboru folderu, do którego karta WiFi aparatu zapisuje zdjęcia. Od tego momentu aplikacja działa całkowicie automatycznie.
+Przy pierwszym uruchomieniu pojawi się okno wyboru folderu, do którego karta WiFi aparatu zapisuje zdjęcia. Nowe pliki będą automatycznie trafiać do galerii, a duży podgląd pokaże zdjęcie wybrane kliknięciem. Automatyczne przełączanie podglądu na najnowszy plik można włączyć w ustawieniach (`Ctrl+P`).
 
 ## Budowanie ze źródeł
 
