@@ -22,6 +22,7 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
     private readonly IExifService _exifService;
     private readonly DispatcherTimer _manualHoldTimer;
     private bool _automaticallyShowLatestPhoto;
+    private IList<PhotoItem>? _navigationSource;
     private int _loadToken;
     private CancellationTokenSource? _imageLoadCts;
     private CancellationTokenSource? _analysisCts;
@@ -144,21 +145,42 @@ public sealed partial class FullscreenPhotoViewModel : ViewModelBase
         }
     }
 
-    public void ShowPrevious()
-    {
-        var index = CurrentPhoto is null ? -1 : _library.Photos.IndexOf(CurrentPhoto);
-        if (index >= 0 && index + 1 < _library.Photos.Count)
-        {
-            ShowManually(_library.Photos[index + 1]);
-        }
-    }
+    /// <summary>
+    /// Ustawia kolekcję, po której chodzą strzałki. Siatka podaje tu swoją przefiltrowaną listę,
+    /// więc klawiatura przechodzi dokładnie po zdjęciach widocznych w galerii, a ramka zaznaczenia
+    /// nigdy nie ucieka na zdjęcie ukryte przez filtr.
+    /// </summary>
+    public void UseNavigationSource(IList<PhotoItem> photos) => _navigationSource = photos;
 
-    public void ShowNext()
+    /// <summary>Zdjęcia posortowane od najnowszego: indeks 0 to najnowsze.</summary>
+    private IList<PhotoItem> NavigationPhotos =>
+        _navigationSource is { Count: > 0 } source ? source : _library.Photos;
+
+    public void ShowPrevious() => ShowRelative(1);
+
+    public void ShowNext() => ShowRelative(-1);
+
+    private void ShowRelative(int offset)
     {
-        var index = CurrentPhoto is null ? -1 : _library.Photos.IndexOf(CurrentPhoto);
-        if (index > 0)
+        var photos = NavigationPhotos;
+        if (photos.Count == 0)
         {
-            ShowManually(_library.Photos[index - 1]);
+            return;
+        }
+
+        // Pusty podgląd (wyłączone automatyczne pokazywanie) albo zdjęcie ukryte przez filtr:
+        // pierwsza strzałka po prostu wchodzi na najnowsze widoczne zdjęcie.
+        var index = CurrentPhoto is null ? -1 : photos.IndexOf(CurrentPhoto);
+        if (index < 0)
+        {
+            ShowManually(photos[0]);
+            return;
+        }
+
+        var target = index + offset;
+        if (target >= 0 && target < photos.Count)
+        {
+            ShowManually(photos[target]);
         }
     }
 

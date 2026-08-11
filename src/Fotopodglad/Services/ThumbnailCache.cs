@@ -50,7 +50,7 @@ public sealed class ThumbnailCache : IThumbnailCache
         try
         {
             bitmap = await Task.Run(
-                () => BitmapHelper.LoadEmbeddedThumbnailFrozen(filePath, cancellationToken) ??
+                () => BitmapHelper.LoadEmbeddedThumbnailFrozen(filePath, decodePixelWidth, cancellationToken) ??
                       BitmapHelper.LoadFrozen(filePath, decodePixelWidth, cancellationToken), cancellationToken);
         }
         finally

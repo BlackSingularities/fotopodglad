@@ -68,6 +68,42 @@ public sealed class MasonryLayoutTests
     }
 
     [Fact]
+    public void ComputeScrollOffsetToReveal_KeepsOffset_WhenTileAlreadyFullyVisible()
+    {
+        var slot = new MasonrySlot(0, 220, 300, 200);
+
+        Assert.Null(MasonryLayoutCalculator.ComputeScrollOffsetToReveal(slot, verticalOffset: 200, viewportHeight: 600));
+    }
+
+    [Fact]
+    public void ComputeScrollOffsetToReveal_CentersTileBelowViewport()
+    {
+        var slot = new MasonrySlot(0, 1000, 300, 200);
+
+        var offset = MasonryLayoutCalculator.ComputeScrollOffsetToReveal(slot, verticalOffset: 0, viewportHeight: 600);
+
+        Assert.Equal(800, offset);
+    }
+
+    [Fact]
+    public void ComputeScrollOffsetToReveal_DoesNotScrollAboveTop()
+    {
+        var slot = new MasonrySlot(0, 0, 300, 200);
+
+        var offset = MasonryLayoutCalculator.ComputeScrollOffsetToReveal(slot, verticalOffset: 900, viewportHeight: 600);
+
+        Assert.Equal(0, offset);
+    }
+
+    [Fact]
+    public void ComputeScrollOffsetToReveal_IgnoresUnmeasuredViewport()
+    {
+        var slot = new MasonrySlot(0, 1000, 300, 200);
+
+        Assert.Null(MasonryLayoutCalculator.ComputeScrollOffsetToReveal(slot, verticalOffset: 0, viewportHeight: 0));
+    }
+
+    [Fact]
     public void ComputeLayout_HandlesFifteenThousandPhotos()
     {
         var items = Enumerable.Range(1, 15_000).Select(i => MakePhoto(i)).ToArray();

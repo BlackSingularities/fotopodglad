@@ -35,4 +35,24 @@ public static class MasonryLayoutCalculator
         var totalHeight = rowCount * tileHeight;
         return (slots, totalHeight);
     }
+
+    /// <summary>
+    /// Nowe przesunięcie przewijania, przy którym kafelek jest w pełni widoczny i wyśrodkowany,
+    /// albo <c>null</c>, jeśli kafelek i tak mieści się już w widocznym obszarze. Dzięki temu
+    /// zaznaczanie kolejnych zdjęć strzałkami nie szarpie siatką bez potrzeby.
+    /// </summary>
+    public static double? ComputeScrollOffsetToReveal(MasonrySlot slot, double verticalOffset, double viewportHeight)
+    {
+        if (viewportHeight <= 0)
+        {
+            return null;
+        }
+
+        if (slot.Y >= verticalOffset && slot.Y + slot.Height <= verticalOffset + viewportHeight)
+        {
+            return null;
+        }
+
+        return Math.Max(0, slot.Y - (viewportHeight - slot.Height) / 2);
+    }
 }

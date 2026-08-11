@@ -5,8 +5,15 @@ namespace Fotopodglad.Helpers;
 
 public static class BitmapHelper
 {
+    /// <summary>
+    /// Zwraca miniaturę osadzoną w pliku, ale tylko wtedy, gdy ma co najmniej <paramref name="minimumPixelWidth"/>
+    /// pikseli szerokości. Miniatury EXIF w plikach JPEG mają zwykle 160×120 px — rozciągnięte do kafelka
+    /// galerii wyglądały jak rozmyta plama, dlatego mniejsze od potrzebnych są odrzucane na rzecz
+    /// prawdziwego dekodowania. Podglądy w plikach RAW są duże, więc nadal trafiają w tę szybką ścieżkę.
+    /// </summary>
     public static BitmapSource? LoadEmbeddedThumbnailFrozen(
         string filePath,
+        int minimumPixelWidth = 96,
         CancellationToken cancellationToken = default)
     {
         try
@@ -15,7 +22,7 @@ public static class BitmapHelper
             using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
             var thumbnail = decoder.Frames.FirstOrDefault()?.Thumbnail;
-            if (thumbnail is null || thumbnail.PixelWidth < 96 || thumbnail.PixelHeight < 64)
+            if (thumbnail is null || thumbnail.PixelWidth < Math.Max(96, minimumPixelWidth) || thumbnail.PixelHeight < 64)
             {
                 return null;
             }

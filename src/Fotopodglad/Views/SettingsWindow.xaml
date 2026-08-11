@@ -236,7 +236,7 @@
 
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
                         <TextBlock Text="Szybkość i niezawodność" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="• Najpierw ładowane są zdjęcia widoczne na ekranie oraz wybrany podgląd.&#x0a;• Aplikacja korzysta z miniaturek osadzonych w plikach, gdy są dostępne.&#x0a;• EXIF i cięższe dekodowanie są wykonywane dopiero wtedy, gdy są potrzebne.&#x0a;• Nieaktualne operacje są anulowane podczas szybkiego przechodzenia między zdjęciami.&#x0a;• Pamięć podręczna ma regulowany limit i usuwa najstarsze elementy.&#x0a;• Po utracie dysku lub folderu obserwowanie zostaje automatycznie wznowione po jego powrocie." Style="{StaticResource AboutBody}"/>
+                        <TextBlock Text="• Najpierw ładowane są zdjęcia widoczne na ekranie oraz wybrany podgląd.&#x0a;• Aplikacja korzysta z miniaturek osadzonych w plikach, gdy są dość duże dla kafelka siatki.&#x0a;• EXIF i cięższe dekodowanie są wykonywane dopiero wtedy, gdy są potrzebne.&#x0a;• Nieaktualne operacje są anulowane podczas szybkiego przechodzenia między zdjęciami.&#x0a;• Pamięć podręczna ma regulowany limit i usuwa najstarsze elementy.&#x0a;• Po utracie dysku lub folderu obserwowanie zostaje automatycznie wznowione po jego powrocie." Style="{StaticResource AboutBody}"/>
                     </StackPanel></Border>
 
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
