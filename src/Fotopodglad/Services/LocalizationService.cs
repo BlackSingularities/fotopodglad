@@ -11,7 +11,7 @@ public static class LocalizationService
     {
         ["Ustawienia"] = "Settings", ["Diagnostyka"] = "Diagnostics", ["O aplikacji"] = "About",
         ["Ekrany i okna"] = "Displays and windows", ["Tryb widoków"] = "View mode", ["Układ monitorów"] = "Display layout",
-        ["Okno A — podgląd"] = "Window A — preview", ["Okno B — siatka"] = "Window B — gallery",
+        ["Okno A — podgląd"] = "Window A — preview", ["Okno B — siatka"] = "Window B — grid",
         ["Folder zdjęć"] = "Photo folder", ["Wybierz…"] = "Browse…", ["Galeria i podgląd"] = "Gallery and preview",
         ["Automatycznie pokazuj najnowsze zdjęcie"] = "Automatically show the latest photo",
         ["Po wybraniu zdjęcia z galerii automatyczny podgląd wznowi się po ustawionym czasie. Gdy opcja jest wyłączona, wybrane zdjęcie pozostaje na ekranie."] = "After selecting a gallery photo, automatic preview resumes after the configured time. When this option is off, the selected photo remains on screen.",
@@ -70,12 +70,27 @@ public static class LocalizationService
         ["  •  2. Kliknij zdjęcie, które chcesz pobrać"] = "  •  2. Select the photo you want to download",
         ["  •  3. Zeskanuj „Pobierz wyświetlane zdjęcie” — możesz zapisać je na telefonie"] = "  •  3. Scan “Download displayed photo” and save it to your phone"
     };
-    private static readonly IReadOnlyDictionary<string, string> Polish =
-        English.ToDictionary(pair => pair.Value, pair => pair.Key, StringComparer.Ordinal);
+    // ToDictionary po wartościach rzucało ArgumentException przy powtórzonym tłumaczeniu, a wyjątek
+    // z inicjalizatora statycznego zabijał aplikację przy pierwszym pokazaniu okna ustawień.
+    // Ręczna pętla nadpisuje duplikat zamiast przerywać start; test pilnuje unikalności tłumaczeń.
+    private static readonly IReadOnlyDictionary<string, string> Polish = BuildReverseMap(English);
+
+    /// <summary>Słownik polski → angielski; udostępniony dla testów pilnujących spójności tłumaczeń.</summary>
+    public static IReadOnlyDictionary<string, string> Translations => English;
 
     public static void Apply(DependencyObject root, AppSettings settings)
     {
         Walk(root, AppearanceService.UseEnglish(settings));
+    }
+
+    private static Dictionary<string, string> BuildReverseMap(IReadOnlyDictionary<string, string> source)
+    {
+        var reverse = new Dictionary<string, string>(source.Count, StringComparer.Ordinal);
+        foreach (var pair in source)
+        {
+            reverse[pair.Value] = pair.Key;
+        }
+        return reverse;
     }
 
     private static void Walk(DependencyObject element, bool useEnglish)
