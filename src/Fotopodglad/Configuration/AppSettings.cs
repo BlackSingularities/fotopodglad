@@ -55,6 +55,17 @@ public sealed class AppSettings
     public HistogramMode Histogram { get; set; } = HistogramMode.Off;
     public bool ShowClippingWarnings { get; set; }
     public int MaxConcurrentDownloads { get; set; } = 3;
+
+    /// <summary>Dłuższy bok zdjęcia wysyłanego gościowi w pikselach; 0 = pełna rozdzielczość źródła.</summary>
+    public int GuestDownloadLongestEdge { get; set; } = GuestDownloadOptions.OriginalSize;
+
+    /// <summary>
+    /// Czy pobierane zdjęcia przekodowywać do JPEG. Pliki PNG pozostają PNG, bo to format bezstratny;
+    /// wszystkie pozostałe (TIFF, HEIC, RAW) trafiają do telefonu jako JPEG, który otworzy każdy sprzęt.
+    /// </summary>
+    public bool GuestDownloadConvertToJpeg { get; set; }
+
+    public int GuestDownloadJpegQuality { get; set; } = 90;
     public int ThumbnailCacheMegabytes { get; set; } = 256;
 
     public double ExifTextSize { get; set; } = 15;
@@ -68,6 +79,15 @@ public sealed class AppSettings
     public event EventHandler? Changed;
 
     public void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Metoda, nie właściwość — dzięki temu w settings.json nie pojawia się wyliczony obiekt
+    /// obok trzech pól, z których powstaje.
+    /// </summary>
+    public GuestDownloadOptions CreateGuestDownloadOptions() => new(
+        Math.Max(GuestDownloadOptions.OriginalSize, GuestDownloadLongestEdge),
+        GuestDownloadConvertToJpeg,
+        GuestDownloadJpegQuality);
 
     public AppSettings Clone()
     {
@@ -105,6 +125,9 @@ public sealed class AppSettings
         Histogram = source.Histogram;
         ShowClippingWarnings = source.ShowClippingWarnings;
         MaxConcurrentDownloads = source.MaxConcurrentDownloads;
+        GuestDownloadLongestEdge = source.GuestDownloadLongestEdge;
+        GuestDownloadConvertToJpeg = source.GuestDownloadConvertToJpeg;
+        GuestDownloadJpegQuality = source.GuestDownloadJpegQuality;
         ThumbnailCacheMegabytes = source.ThumbnailCacheMegabytes;
         ExifTextSize = source.ExifTextSize;
         InstructionTextSize = source.InstructionTextSize;

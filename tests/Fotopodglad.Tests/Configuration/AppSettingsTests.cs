@@ -70,6 +70,58 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void Defaults_SendOriginalFileToGuests()
+    {
+        var options = new AppSettings().CreateGuestDownloadOptions();
+
+        Assert.Equal(GuestDownloadOptions.OriginalSize, options.LongestEdgePixels);
+        Assert.False(options.ConvertToJpeg);
+        Assert.False(options.RequiresProcessing);
+    }
+
+    [Fact]
+    public void GuestDownloadOptions_RequireProcessingWheneverSizeIsLimited()
+    {
+        var settings = new AppSettings { GuestDownloadLongestEdge = 2048, GuestDownloadJpegQuality = 150 };
+
+        var options = settings.CreateGuestDownloadOptions();
+
+        Assert.True(options.RequiresProcessing);
+        Assert.Equal(GuestDownloadOptions.MaxJpegQuality, options.ClampedJpegQuality);
+    }
+
+    [Fact]
+    public void CopyFrom_CarriesGuestDownloadSettings()
+    {
+        var target = new AppSettings();
+        var source = new AppSettings
+        {
+            GuestDownloadLongestEdge = 1600,
+            GuestDownloadConvertToJpeg = true,
+            GuestDownloadJpegQuality = 75
+        };
+
+        target.CopyFrom(source);
+
+        Assert.Equal(1600, target.GuestDownloadLongestEdge);
+        Assert.True(target.GuestDownloadConvertToJpeg);
+        Assert.Equal(75, target.GuestDownloadJpegQuality);
+    }
+
+    [Fact]
+    public void GuestDownloadChanges_DoNotRequireApplicationRestart()
+    {
+        var before = new AppSettings();
+        var after = before.Clone();
+        after.GuestDownloadLongestEdge = 2048;
+        after.GuestDownloadConvertToJpeg = true;
+        after.GuestDownloadJpegQuality = 80;
+
+        // Serwer czyta ustawienia przy każdym żądaniu, więc hotspot nie musi się restartować.
+        Assert.False(AppSettings.RequiresRestart(before, after));
+    }
+
+    [Fact]
     public void VisualChanges_DoNotRequireApplicationRestart()
     {
         var before = new AppSettings();

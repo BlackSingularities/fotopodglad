@@ -15,6 +15,8 @@ namespace Fotopodglad.Services.GuestGallery;
 public sealed class GuestGalleryHttpServer : IDisposable
 {
     private readonly IPhotoLibraryService _library;
+    private readonly AppSettings _settings;
+    private readonly GuestPhotoExporter _exporter = new();
     private readonly int _configuredPort;
     private readonly SemaphoreSlim _downloadSlots;
     private TcpListener? _listener;
@@ -31,9 +33,10 @@ public sealed class GuestGalleryHttpServer : IDisposable
         }
 
         _library = library;
+        _settings = settings ?? new AppSettings();
         _configuredPort = port;
         Port = port;
-        _downloadSlots = new SemaphoreSlim(Math.Clamp(settings?.MaxConcurrentDownloads ?? 3, 1, 20));
+        _downloadSlots = new SemaphoreSlim(Math.Clamp(_settings.MaxConcurrentDownloads, 1, 20));
     }
 
     public int Port { get; private set; }
@@ -106,10 +109,16 @@ public sealed class GuestGalleryHttpServer : IDisposable
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken serverCancellationToken)
     {
+        // Ustawienia są czytane raz na żądanie, więc zmiana rozmiaru lub formatu w Ctrl+P działa od razu,
+        // bez restartu hotspotu, a w trakcie jednego pobierania nie zmienia się w połowie pliku.
+        var downloadOptions = _settings.CreateGuestDownloadOptions();
+
         using (client)
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(serverCancellationToken))
         {
-            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            // Przekodowanie 60-megapikselowego RAW-a trwa dłużej niż przesłanie gotowego pliku,
+            // więc limit czasu żądania rośnie tylko wtedy, gdy naprawdę coś przetwarzamy.
+            timeout.CancelAfter(downloadOptions.RequiresProcessing ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(15));
             var cancellationToken = timeout.Token;
 
             try
@@ -150,7 +159,7 @@ public sealed class GuestGalleryHttpServer : IDisposable
 
                 try
                 {
-                    await SendPhotoAsync(stream, photo, cancellationToken);
+                    await SendPhotoAsync(stream, photo, downloadOptions, cancellationToken);
                     PhotoDownloaded?.Invoke();
                 }
                 finally
@@ -170,23 +179,57 @@ public sealed class GuestGalleryHttpServer : IDisposable
 
     private int activeDownloadsBackingField;
 
-    private static async Task SendPhotoAsync(NetworkStream stream, PhotoItem photo, CancellationToken cancellationToken)
+    private async Task SendPhotoAsync(
+        NetworkStream stream,
+        PhotoItem photo,
+        GuestDownloadOptions options,
+        CancellationToken cancellationToken)
     {
-        var safeFileName = photo.FileName.Replace("\"", "'").Replace("\r", "").Replace("\n", "");
+        // Dekodowanie i kompresja idą na wątek tła — pętla akceptująca połączenia nie może na nie czekać.
+        var payload = options.RequiresProcessing
+            ? await Task.Run(
+                () => _exporter.TryPrepare(photo.FilePath, photo.FileName, options, cancellationToken),
+                cancellationToken)
+            : null;
+
+        if (payload is null)
+        {
+            await SendOriginalFileAsync(stream, photo, cancellationToken);
+            return;
+        }
+
+        await WriteHeadersAsync(stream, payload.ContentType, payload.FileName, payload.Bytes.Length, cancellationToken);
+        await stream.WriteAsync(payload.Bytes, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    private static async Task SendOriginalFileAsync(NetworkStream stream, PhotoItem photo, CancellationToken cancellationToken)
+    {
         await using var photoStream = new FileStream(
             photo.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
             bufferSize: 81920, useAsync: true);
 
+        await WriteHeadersAsync(stream, GetContentType(photo.FilePath), photo.FileName, photoStream.Length, cancellationToken);
+        await photoStream.CopyToAsync(stream, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    private static async Task WriteHeadersAsync(
+        NetworkStream stream,
+        string contentType,
+        string fileName,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        var safeFileName = fileName.Replace("\"", "'").Replace("\r", "").Replace("\n", "");
         var headers =
             "HTTP/1.1 200 OK\r\n" +
-            $"Content-Type: {GetContentType(photo.FilePath)}\r\n" +
+            $"Content-Type: {contentType}\r\n" +
             $"Content-Disposition: attachment; filename=\"{safeFileName}\"\r\n" +
-            $"Content-Length: {photoStream.Length}\r\n" +
+            $"Content-Length: {contentLength}\r\n" +
             "Connection: close\r\n\r\n";
 
         await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
-        await photoStream.CopyToAsync(stream, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
     }
 
     private static string GetContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch

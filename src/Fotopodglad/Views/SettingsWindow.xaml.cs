@@ -67,6 +67,14 @@ public partial class SettingsWindow : Window
         WindowModeComboBox.ItemsSource = english ? new[] { "Fullscreen", "Windowed" } : new[] { "Pełny ekran", "Tryb okienkowy" };
         HistogramComboBox.ItemsSource = english ? new[] { "Off", "Luminance", "RGB" } : new[] { "Wyłączony", "Jasność", "RGB" };
         PhotoFilterComboBox.ItemsSource = english ? new[] { "All", "Today", "Latest 10", "Latest 50", "Flagged", "Date range" } : new[] { "Wszystkie", "Dzisiejsze", "Ostatnie 10", "Ostatnie 50", "Oznaczone", "Przedział czasu" };
+        GuestDownloadSizeComboBox.ItemsSource = GuestDownloadOptions.AvailableLongestEdges
+            .Select(edge => edge == GuestDownloadOptions.OriginalSize
+                ? english ? "Original resolution" : "Oryginalna rozdzielczość"
+                : $"{edge} px")
+            .ToList();
+        GuestDownloadFormatComboBox.ItemsSource = english
+            ? new[] { "Original file (no recompression)", "JPEG (PNG stays PNG)" }
+            : new[] { "Oryginalny plik (bez rekompresji)", "JPEG (PNG pozostaje PNG)" };
         ThemeComboBox.ItemsSource = english ? new[] { "Automatic", "Dark", "Light" } : new[] { "Automatyczny", "Ciemny", "Jasny" };
         UiScaleComboBox.ItemsSource = english ? new[] { "Small", "Normal", "Large" } : new[] { "Mała", "Normalna", "Duża" };
         LanguageComboBox.ItemsSource = new[] { english ? "Automatic" : "Automatyczny", "Polski", "English" };
@@ -104,6 +112,12 @@ public partial class SettingsWindow : Window
         WifiPasswordBox.Password = _draft.WifiPassphrase ?? string.Empty;
         QrSizeSlider.Value = Math.Clamp(_draft.QrCodeSize, 96, 320);
         MaxDownloadsTextBox.Text = _draft.MaxConcurrentDownloads.ToString(CultureInfo.InvariantCulture);
+        GuestDownloadSizeComboBox.SelectedIndex = Math.Max(0,
+            Array.IndexOf(GuestDownloadOptions.AvailableLongestEdges, _draft.GuestDownloadLongestEdge));
+        GuestDownloadFormatComboBox.SelectedIndex = _draft.GuestDownloadConvertToJpeg ? 1 : 0;
+        GuestDownloadQualitySlider.Value = Math.Clamp(
+            _draft.GuestDownloadJpegQuality, GuestDownloadOptions.MinJpegQuality, GuestDownloadOptions.MaxJpegQuality);
+        UpdateGuestDownloadSummary();
         InstructionTextSizeSlider.Value = _draft.InstructionTextSize;
         CheckForUpdatesCheckBox.IsChecked = _draft.CheckForUpdates;
         ThemeComboBox.SelectedIndex = (int)_draft.Theme;
@@ -172,6 +186,9 @@ public partial class SettingsWindow : Window
         _draft.WifiPassphrase = string.IsNullOrWhiteSpace(password) ? null : password;
         _draft.QrCodeSize = (int)Math.Round(QrSizeSlider.Value);
         _draft.MaxConcurrentDownloads = downloads;
+        _draft.GuestDownloadLongestEdge = SelectedGuestDownloadEdge();
+        _draft.GuestDownloadConvertToJpeg = GuestDownloadFormatComboBox.SelectedIndex == 1;
+        _draft.GuestDownloadJpegQuality = (int)Math.Round(GuestDownloadQualitySlider.Value);
         _draft.InstructionTextSize = InstructionTextSizeSlider.Value;
         _draft.CheckForUpdates = CheckForUpdatesCheckBox.IsChecked == true;
         _draft.Theme = (ThemeMode)Math.Max(0, ThemeComboBox.SelectedIndex);
@@ -288,6 +305,56 @@ public partial class SettingsWindow : Window
     private void OnQrSizeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (QrSizeValueTextBlock is not null) QrSizeValueTextBlock.Text = $"{Math.Round(e.NewValue):0} px";
+    }
+
+    private int SelectedGuestDownloadEdge()
+    {
+        var index = GuestDownloadSizeComboBox.SelectedIndex;
+        return index >= 0 && index < GuestDownloadOptions.AvailableLongestEdges.Length
+            ? GuestDownloadOptions.AvailableLongestEdges[index]
+            : GuestDownloadOptions.OriginalSize;
+    }
+
+    private void OnGuestDownloadOptionChanged(object sender, SelectionChangedEventArgs e) => UpdateGuestDownloadSummary();
+
+    private void OnGuestDownloadQualityChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateGuestDownloadSummary();
+
+    /// <summary>
+    /// Utrzymuje spójność trzech pól i opisuje jednym zdaniem, co dokładnie dostanie gość.
+    /// Skalowanie zawsze oznacza ponowne zakodowanie pliku, więc wybór rozmiaru wymusza JPEG,
+    /// a pole formatu przestaje być klikalne — zamiast cicho ignorować niemożliwą kombinację.
+    /// </summary>
+    private void UpdateGuestDownloadSummary()
+    {
+        if (GuestDownloadSummaryTextBlock is null || GuestDownloadFormatComboBox is null ||
+            GuestDownloadQualitySlider is null || GuestDownloadQualityValueTextBlock is null)
+        {
+            return;
+        }
+
+        var edge = SelectedGuestDownloadEdge();
+        var resizes = edge > GuestDownloadOptions.OriginalSize;
+        if (resizes && GuestDownloadFormatComboBox.SelectedIndex != 1)
+        {
+            GuestDownloadFormatComboBox.SelectedIndex = 1;
+        }
+
+        var convertsToJpeg = resizes || GuestDownloadFormatComboBox.SelectedIndex == 1;
+        GuestDownloadFormatComboBox.IsEnabled = !resizes;
+        GuestDownloadQualityPanel.IsEnabled = convertsToJpeg;
+
+        var quality = (int)Math.Round(GuestDownloadQualitySlider.Value);
+        var english = AppearanceService.UseEnglish(_draft);
+        GuestDownloadQualityValueTextBlock.Text = $"{quality}%";
+        GuestDownloadSummaryTextBlock.Text = (english, convertsToJpeg, resizes) switch
+        {
+            (true, false, _) => "A guest downloads the original file, byte for byte.",
+            (true, true, false) => $"A guest downloads a full-resolution JPEG at {quality}% quality (PNG files stay PNG).",
+            (true, true, true) => $"A guest downloads a JPEG at {quality}% quality, scaled down to {edge} px on the longer side (PNG files stay PNG).",
+            (false, false, _) => "Gość pobiera oryginalny plik, bajt w bajt.",
+            (false, true, false) => $"Gość pobiera JPEG w pełnej rozdzielczości, jakość {quality}% (pliki PNG pozostają PNG).",
+            (false, true, true) => $"Gość pobiera JPEG o dłuższym boku {edge} px, jakość {quality}% (pliki PNG pozostają PNG)."
+        };
     }
 
     private void OnBrowseFolderClick(object sender, RoutedEventArgs e)
