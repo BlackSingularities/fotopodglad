@@ -81,7 +81,7 @@
         </Grid>
 
         <TabControl x:Name="SettingsTabs" Grid.Row="1" Background="Transparent" BorderThickness="0">
-            <TabItem x:Name="GeneralTab" Header="Ustawienia">
+            <TabItem x:Name="DisplaysTab" Header="Ekrany">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0">
                     <StackPanel>
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
@@ -98,7 +98,13 @@
                             </Grid>
                             <TextBlock Text="F11 przełącza tryb pełnoekranowy i okienkowy. Pozycje okien są zapamiętywane." Style="{StaticResource HintText}" Margin="0,10,0,0"/>
                         </StackPanel></Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
+            <TabItem x:Name="LibraryTab" Header="Folder i galeria">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0">
+                    <StackPanel>
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
                             <TextBlock Text="Folder zdjęć" Style="{StaticResource SectionTitle}"/>
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -108,28 +114,56 @@
                         </StackPanel></Border>
 
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
-                            <TextBlock Text="Galeria i podgląd" Style="{StaticResource SectionTitle}"/>
-                            <CheckBox x:Name="AutomaticallyShowLatestPhotoCheckBox" Content="Automatycznie pokazuj najnowsze zdjęcie" Margin="0,0,0,8"/>
-                            <TextBlock Text="Po wybraniu zdjęcia z galerii automatyczny podgląd wznowi się po ustawionym czasie. Gdy opcja jest wyłączona, wybrane zdjęcie pozostaje na ekranie." Style="{StaticResource HintText}" Margin="0,0,0,12"/>
-                            <CheckBox x:Name="ShowPhotoParametersCheckBox" Content="Pokazuj nazwę i parametry EXIF" Margin="0,0,0,10"/>
-                            <CheckBox x:Name="ShowClippingWarningsCheckBox" Content="Oznaczaj przepalenia na czerwono i niedoświetlenia na niebiesko" Margin="0,0,0,14"/>
-                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Siatka zdjęć" Style="{StaticResource SectionTitle}"/>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel><TextBlock Text="Kolumny siatki" Style="{StaticResource FieldLabel}"/><TextBox x:Name="GridColumnsTextBox"/></StackPanel>
-                                <StackPanel Grid.Column="2" IsEnabled="{Binding IsChecked, ElementName=AutomaticallyShowLatestPhotoCheckBox}"><TextBlock Text="Czas wybranego zdjęcia (s)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ManualHoldTextBox"/></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="Histogram" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="HistogramComboBox"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Limit cache miniaturek (MB)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ThumbnailCacheTextBox"/></StackPanel>
                             </Grid>
-                            <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="Filtr zdjęć" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="PhotoFilterComboBox"/></StackPanel>
+                            <TextBlock Text="Zdjęcie widoczne w podglądzie ma w siatce ramkę w kolorze akcentu." Style="{StaticResource HintText}" Margin="0,10,0,0"/>
+                            <TextBlock Text="Prawy przycisk myszy na miniaturze oznacza lub odznacza zdjęcie." Style="{StaticResource HintText}" Margin="0,4,0,0"/>
+                        </StackPanel></Border>
+
+                        <Border Style="{StaticResource SectionCard}"><StackPanel>
+                            <TextBlock Text="Filtr zdjęć" Style="{StaticResource SectionTitle}"/>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Widoczne zdjęcia" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="PhotoFilterComboBox"/></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Text="Data od" Style="{StaticResource FieldLabel}"/><DatePicker x:Name="FilterFromDatePicker"/></StackPanel>
                                 <StackPanel Grid.Column="4"><TextBlock Text="Data do" Style="{StaticResource FieldLabel}"/><DatePicker x:Name="FilterToDatePicker"/></StackPanel>
                             </Grid>
-                            <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="Limit cache miniaturek (MB)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ThumbnailCacheTextBox"/></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Rozmiar tekstu EXIF" Style="{StaticResource FieldLabel}"/><Slider x:Name="ExifTextSizeSlider" Minimum="10" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True"/></StackPanel>
-                            </Grid>
-                            <TextBlock Text="Prawy przycisk myszy na miniaturze oznacza lub odznacza zdjęcie." Style="{StaticResource HintText}" Margin="0,10,0,0"/>
+                            <TextBlock Text="Strzałki w obu oknach przechodzą po zdjęciach widocznych w siatce, więc filtr obowiązuje także dla klawiatury." Style="{StaticResource HintText}" Margin="0,10,0,0"/>
+                        </StackPanel></Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="PreviewTab" Header="Podgląd">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource SectionCard}"><StackPanel>
+                            <TextBlock Text="Wybór zdjęcia" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="AutomaticallyShowLatestPhotoCheckBox" Content="Automatycznie pokazuj najnowsze zdjęcie" Margin="0,0,0,8"/>
+                            <TextBlock Text="Po wybraniu zdjęcia z galerii automatyczny podgląd wznowi się po ustawionym czasie. Gdy opcja jest wyłączona, wybrane zdjęcie pozostaje na ekranie." Style="{StaticResource HintText}" Margin="0,0,0,12"/>
+                            <StackPanel Width="240" HorizontalAlignment="Left" IsEnabled="{Binding IsChecked, ElementName=AutomaticallyShowLatestPhotoCheckBox}">
+                                <TextBlock Text="Czas wybranego zdjęcia (s)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ManualHoldTextBox"/>
+                            </StackPanel>
                         </StackPanel></Border>
 
+                        <Border Style="{StaticResource SectionCard}"><StackPanel>
+                            <TextBlock Text="Narzędzia fotografa" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="ShowPhotoParametersCheckBox" Content="Pokazuj nazwę i parametry EXIF" Margin="0,0,0,10"/>
+                            <CheckBox x:Name="ShowClippingWarningsCheckBox" Content="Oznaczaj przepalenia na czerwono i niedoświetlenia na niebiesko" Margin="0,0,0,14"/>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Histogram" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="HistogramComboBox"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Rozmiar tekstu EXIF" Style="{StaticResource FieldLabel}"/><Slider x:Name="ExifTextSizeSlider" Minimum="10" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True"/></StackPanel>
+                            </Grid>
+                        </StackPanel></Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="SharingTab" Header="Udostępnianie">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0">
+                    <StackPanel>
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
                             <TextBlock Text="Hotspot i pobieranie" Style="{StaticResource SectionTitle}"/>
                             <CheckBox x:Name="GuestAccessEnabledCheckBox" Content="Automatycznie uruchamiaj hotspot i QR" Margin="0,0,0,8"/>
@@ -140,14 +174,37 @@
                             </Grid>
                             <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel><TextBlock Text="Wielkość QR" Style="{StaticResource FieldLabel}"/><Slider x:Name="QrSizeSlider" Minimum="96" Maximum="320" TickFrequency="16" IsSnapToTickEnabled="True" ValueChanged="OnQrSizeChanged"/><TextBlock x:Name="QrSizeValueTextBlock" Style="{StaticResource HintText}"/></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Jednoczesne pobrania (1–20)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="MaxDownloadsTextBox"/><TextBlock Text="Oryginalny plik jest wysyłany bez rekompresji i utraty jakości." Style="{StaticResource HintText}" Margin="0,6,0,0"/></StackPanel>
-                            </Grid>
-                            <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="Rozmiar instrukcji" Style="{StaticResource FieldLabel}"/><Slider x:Name="InstructionTextSizeSlider" Minimum="9" Maximum="28" TickFrequency="1" IsSnapToTickEnabled="True"/></StackPanel>
-                                <CheckBox Grid.Column="2" x:Name="CheckForUpdatesCheckBox" Content="Automatycznie sprawdzaj aktualizacje GitHub" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Rozmiar instrukcji" Style="{StaticResource FieldLabel}"/><Slider x:Name="InstructionTextSizeSlider" Minimum="9" Maximum="28" TickFrequency="1" IsSnapToTickEnabled="True"/></StackPanel>
                             </Grid>
                         </StackPanel></Border>
 
+                        <Border Style="{StaticResource SectionCard}"><StackPanel>
+                            <TextBlock Text="Co pobiera gość" Style="{StaticResource SectionTitle}"/>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Rozmiar (dłuższy bok)" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="GuestDownloadSizeComboBox" SelectionChanged="OnGuestDownloadOptionChanged"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Format pliku" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="GuestDownloadFormatComboBox" SelectionChanged="OnGuestDownloadOptionChanged"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel x:Name="GuestDownloadQualityPanel">
+                                    <TextBlock Text="Jakość JPEG" Style="{StaticResource FieldLabel}"/>
+                                    <Slider x:Name="GuestDownloadQualitySlider" Minimum="40" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnGuestDownloadQualityChanged"/>
+                                    <TextBlock x:Name="GuestDownloadQualityValueTextBlock" Style="{StaticResource HintText}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Jednoczesne pobrania (1–20)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="MaxDownloadsTextBox"/></StackPanel>
+                            </Grid>
+                            <Border Margin="0,14,0,0" Padding="12" Background="{DynamicResource Brush.Control}" CornerRadius="8">
+                                <TextBlock x:Name="GuestDownloadSummaryTextBlock" Style="{StaticResource HintText}"/>
+                            </Border>
+                            <TextBlock Text="Zmiana rozmiaru wymaga ponownego zakodowania pliku, dlatego format jest wtedy ustawiony na JPEG. Pliki PNG pozostają PNG." Style="{StaticResource HintText}" Margin="0,10,0,0"/>
+                            <TextBlock Text="Zdjęcia źródłowe nigdy nie są modyfikowane — przekodowana kopia powstaje wyłącznie w pamięci na czas pobierania." Style="{StaticResource HintText}" Margin="0,4,0,0"/>
+                        </StackPanel></Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="AppearanceTab" Header="Wygląd">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,14,8,0">
+                    <StackPanel>
                         <Border Style="{StaticResource SectionCard}"><StackPanel>
                             <TextBlock Text="Wygląd i język" Style="{StaticResource SectionTitle}"/>
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -155,6 +212,11 @@
                                 <StackPanel Grid.Column="2"><TextBlock Text="Skala interfejsu" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="UiScaleComboBox"/></StackPanel>
                                 <StackPanel Grid.Column="4"><TextBlock Text="Język" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="LanguageComboBox"/></StackPanel>
                             </Grid>
+                        </StackPanel></Border>
+
+                        <Border Style="{StaticResource SectionCard}"><StackPanel>
+                            <TextBlock Text="Aktualizacje" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="CheckForUpdatesCheckBox" Content="Automatycznie sprawdzaj aktualizacje GitHub"/>
                         </StackPanel></Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -230,7 +292,8 @@
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
                         <TextBlock Text="Hotspot i udostępnianie przez QR" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Text="Pierwszy kod QR łączy telefon z siecią Wi‑Fi utworzoną przez komputer. Drugi prowadzi zawsze do zdjęcia widocznego aktualnie w podglądzie — nie po prostu do najnowszego pliku." Style="{StaticResource AboutBody}"/>
-                        <TextBlock Text="Zdjęcia są udostępniane bezpośrednio z wybranego folderu w oryginalnej jakości, bez rekompresji. Limit równoległych pobrań chroni komputer i sieć przed przeciążeniem. Po pięciu minutach bez pobierania hasło sesji jest zmieniane, a kody QR aktualizują się automatycznie." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                        <TextBlock Text="Domyślnie gość dostaje oryginalny plik bez rekompresji. W zakładce Udostępnianie można wybrać mniejszy dłuższy bok i jakość JPEG — wtedy telefon pobiera lżejszą kopię, a pliki RAW, TIFF i HEIC zamieniają się w JPEG, który otworzy każde urządzenie. Pliki PNG pozostają PNG." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                        <TextBlock Text="Limit równoległych pobrań chroni komputer i sieć przed przeciążeniem. Po pięciu minutach bez pobierania hasło sesji jest zmieniane, a kody QR aktualizują się automatycznie." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
                         <TextBlock Text="Hotspot wymaga obsługi mobilnego punktu dostępu przez kartę i sterownik Wi‑Fi. Zakładka Diagnostyka pokazuje stan uruchamiania, adres IP, próby automatycznej naprawy i czytelny opis błędu." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
                     </StackPanel></Border>
 
@@ -242,7 +305,7 @@
                     <Border Style="{StaticResource SectionCard}"><StackPanel>
                         <TextBlock Text="Obsługiwane pliki" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Text="Standardowe: JPEG, JPG, PNG i TIFF.&#x0a;Nowoczesne: HEIC i HEIF.&#x0a;RAW: ARW, NEF, NRW, CR2, CR3, RAF, DNG, RW2, ORF i PEF." Style="{StaticResource AboutBody}"/>
-                        <TextBlock Text="Dostępność podglądu konkretnego pliku RAW lub HEIC zależy od jego wariantu oraz kodeków dostępnych w systemie. Plik pobierany przez gościa pozostaje oryginałem, niezależnie od formatu użytego do podglądu." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
+                        <TextBlock Text="Dostępność podglądu konkretnego pliku RAW lub HEIC zależy od jego wariantu oraz kodeków dostępnych w systemie." Style="{StaticResource AboutBody}" Margin="0,8,0,0"/>
                     </StackPanel></Border>
 
                     <Border Style="{StaticResource SectionCard}"><StackPanel>

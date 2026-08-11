@@ -2,9 +2,11 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using Fotopodglad.Configuration;
 using Fotopodglad.Models;
 using Fotopodglad.Services;
 using Fotopodglad.Services.GuestGallery;
+using ImageMagick;
 using Xunit;
 
 namespace Fotopodglad.Tests.Services;
@@ -49,6 +51,67 @@ public sealed class GuestGalleryHttpServerTests : IDisposable
         Assert.Equal("zdjecie.jpg", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         Assert.Equal(expected, await response.Content.ReadAsByteArrayAsync());
         await downloadReported.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task PhotoEndpoint_SendsResizedJpeg_WhenGuestDownloadSizeIsConfigured()
+    {
+        var path = Path.Combine(_tempFolder, "sesja.tiff");
+        TestImages.WriteTiff(path, 2000, 1000);
+
+        var library = new FakePhotoLibrary();
+        library.Photos.Add(new PhotoItem
+        {
+            FilePath = path,
+            FileName = "sesja.tiff",
+            Exif = new ExifData(),
+            DiscoveredAtUtc = DateTime.UtcNow,
+            SequenceId = 7
+        });
+
+        var settings = new AppSettings { GuestDownloadLongestEdge = 640, GuestDownloadJpegQuality = 80 };
+        using var server = new GuestGalleryHttpServer(library, settings, port: 0);
+        server.Start(IPAddress.Loopback.ToString());
+
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        using var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/photo/7");
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("sesja.jpg", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        Assert.Equal(bytes.Length, response.Content.Headers.ContentLength);
+        using var image = new MagickImage(bytes);
+        Assert.Equal(640u, image.Width);
+        Assert.True(bytes.Length < new FileInfo(path).Length, "Przeskalowany JPEG powinien być mniejszy od źródłowego TIFF-a.");
+    }
+
+    [Fact]
+    public async Task PhotoEndpoint_SendsUntouchedOriginal_WhenProcessingIsDisabled()
+    {
+        var expected = new byte[] { 0xFF, 0xD8, 0x07, 0x08, 0xFF, 0xD9 };
+        var path = Path.Combine(_tempFolder, "oryginal.jpg");
+        await File.WriteAllBytesAsync(path, expected);
+
+        var library = new FakePhotoLibrary();
+        library.Photos.Add(new PhotoItem
+        {
+            FilePath = path,
+            FileName = "oryginal.jpg",
+            Exif = new ExifData(),
+            DiscoveredAtUtc = DateTime.UtcNow,
+            SequenceId = 8
+        });
+
+        // Domyślne ustawienia: żadnego przetwarzania, więc nawet plik nie do zdekodowania idzie bajt w bajt.
+        using var server = new GuestGalleryHttpServer(library, new AppSettings(), port: 0);
+        server.Start(IPAddress.Loopback.ToString());
+
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        using var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/photo/8");
+
+        Assert.Equal(expected, await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal("oryginal.jpg", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
     }
 
     [Fact]
