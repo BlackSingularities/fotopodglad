@@ -14,6 +14,8 @@ public partial class MainViewWindow : Window
         DataContext = viewModel;
     }
 
-    private async void OnKeyDown(object sender, KeyEventArgs e)
+    // PreviewKeyDown (tunelowanie) zamiast KeyDown: strzałki i Home muszą trafić do skrótów aplikacji,
+    // zanim przechwyci je kontrolka z fokusem — np. ScrollViewer galerii przewijający zawartość.
+    private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
         => await ((App)Application.Current).HandleShortcutAsync(this, e);
 }

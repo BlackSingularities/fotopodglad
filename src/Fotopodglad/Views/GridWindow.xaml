@@ -6,7 +6,7 @@
         WindowStyle="None"
         ResizeMode="CanMinimize"
         WindowStartupLocation="Manual"
-        KeyDown="OnKeyDown"
+        PreviewKeyDown="OnPreviewKeyDown"
         Background="{DynamicResource Brush.Background}">
     <Grid>
         <Grid.RowDefinitions>

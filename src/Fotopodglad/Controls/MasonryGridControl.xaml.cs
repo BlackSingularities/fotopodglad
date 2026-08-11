@@ -29,6 +29,20 @@ public partial class MasonryGridControl : UserControl
     private Dictionary<PhotoItem, MasonrySlot> _layout = new();
     private IThumbnailCache? _thumbnailCache;
     private ObservableCollection<PhotoItem>? _itemsSource;
+    private PhotoItem? _selectedPhoto;
+
+    /// <summary>
+    /// Jedna ramka przesuwana nad kafelek wybranego zdjęcia. Tańsza i prostsza od opakowywania
+    /// każdej recyklowanej kontrolki Image we własny Border.
+    /// </summary>
+    private readonly Border _selectionFrame = new()
+    {
+        BorderThickness = new Thickness(3),
+        CornerRadius = new CornerRadius(2),
+        IsHitTestVisible = false,
+        SnapsToDevicePixels = true,
+        Visibility = Visibility.Collapsed
+    };
 
     public event Action<PhotoItem>? PhotoClicked;
     public event Action<PhotoItem>? PhotoFlagToggled;
@@ -36,8 +50,51 @@ public partial class MasonryGridControl : UserControl
     public MasonryGridControl()
     {
         InitializeComponent();
+        _selectionFrame.SetResourceReference(Border.BorderBrushProperty, "Brush.Accent");
+        Panel.SetZIndex(_selectionFrame, 1); // zawsze nad kafelkami dodawanymi przez wirtualizację
+        LayoutCanvas.Children.Add(_selectionFrame);
         SizeChanged += (_, _) => RecomputeLayout();
         Loaded += (_, _) => RecomputeLayout();
+    }
+
+    /// <summary>
+    /// Zaznacza zdjęcie pokazywane w podglądzie. <paramref name="scrollIntoView"/> dowozi kafelek do
+    /// widocznego obszaru — używane przy ręcznym wyborze (strzałki, kliknięcie), a pomijane przy
+    /// automatycznym podglądzie najnowszego zdjęcia, żeby nie przewijać siatki pod ręką użytkownika.
+    /// </summary>
+    public void SetSelectedPhoto(PhotoItem? photo, bool scrollIntoView = false)
+    {
+        _selectedPhoto = photo;
+        UpdateSelectionFrame();
+        if (scrollIntoView && photo is not null && _layout.TryGetValue(photo, out var slot))
+        {
+            EnsureVisible(slot);
+        }
+    }
+
+    private void UpdateSelectionFrame()
+    {
+        if (_selectedPhoto is null || !_layout.TryGetValue(_selectedPhoto, out var slot))
+        {
+            // Wybrane zdjęcie może być odfiltrowane albo jeszcze nieułożone — wtedy nie ma czego ramkować.
+            _selectionFrame.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        Canvas.SetLeft(_selectionFrame, slot.X);
+        Canvas.SetTop(_selectionFrame, slot.Y);
+        _selectionFrame.Width = slot.Width;
+        _selectionFrame.Height = slot.Height;
+        _selectionFrame.Visibility = Visibility.Visible;
+    }
+
+    private void EnsureVisible(MasonrySlot slot)
+    {
+        if (MasonryLayoutCalculator.ComputeScrollOffsetToReveal(slot, Scroller.VerticalOffset, Scroller.ViewportHeight)
+            is { } offset)
+        {
+            Scroller.ScrollToVerticalOffset(offset);
+        }
     }
 
     public void Initialize(IThumbnailCache thumbnailCache, ObservableCollection<PhotoItem> itemsSource, int columnCount = 6)
@@ -106,6 +163,7 @@ public partial class MasonryGridControl : UserControl
             Scroller.ScrollToVerticalOffset(previousOffset);
         }
 
+        UpdateSelectionFrame();
         UpdateVirtualization();
     }
 
@@ -184,10 +242,27 @@ public partial class MasonryGridControl : UserControl
         LayoutCanvas.Children.Add(image);
         _realizedImages[item] = image;
 
-        var decodeWidth = Math.Max(1, (int)(slot.Width * 1.5));
         var cancellation = new CancellationTokenSource();
         _thumbnailLoads[item] = cancellation;
-        _ = LoadThumbnailAsync(item, image, decodeWidth, cancellation.Token);
+        _ = LoadThumbnailAsync(item, image, ComputeDecodeWidth(slot), cancellation.Token);
+    }
+
+    /// <summary>
+    /// Liczba pikseli, jaką kafelek naprawdę zajmuje na ekranie. Szerokość slotu jest w jednostkach
+    /// niezależnych od urządzenia, więc bez pomnożenia przez skalę DPI miniatury na monitorach
+    /// ze skalowaniem 125–200% były rozciągane i wyglądały na rozmyte.
+    /// </summary>
+    private int ComputeDecodeWidth(MasonrySlot slot)
+    {
+        var dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        if (double.IsNaN(dpiScale) || dpiScale <= 0)
+        {
+            dpiScale = 1;
+        }
+
+        // Stretch=UniformToFill skaluje kafelek do szerokości slotu, więc tyle pikseli wystarcza
+        // na ostry obraz; górny limit chroni cache przed miniaturami wielkości podglądu.
+        return Math.Clamp((int)Math.Ceiling(slot.Width * dpiScale), 96, 1600);
     }
 
     private static void ApplySlot(Image image, MasonrySlot slot)

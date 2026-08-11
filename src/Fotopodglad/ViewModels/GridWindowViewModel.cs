@@ -18,6 +18,9 @@ public sealed partial class GridWindowViewModel : ViewModelBase
 
     public BulkObservableCollection<PhotoItem> Photos { get; } = new();
 
+    /// <summary>Wspólny podgląd Okna A — siatka czyta z niego aktualnie wybrane zdjęcie.</summary>
+    public FullscreenPhotoViewModel Preview => _mainView.Preview;
+
     [ObservableProperty] private bool isFolderAvailable = true;
     [ObservableProperty] private string folderAvailabilityMessage = string.Empty;
 
@@ -34,6 +37,9 @@ public sealed partial class GridWindowViewModel : ViewModelBase
         _library.FolderAvailabilityChanged += OnFolderAvailabilityChanged;
         _library.Photos.CollectionChanged += OnLibraryChanged;
         _settings.Changed += OnSettingsChanged;
+
+        // Strzałki w obu oknach mają przechodzić po tym, co widać w galerii — także po zawężeniu filtrem.
+        _mainView.Preview.UseNavigationSource(Photos);
 
         _filterThrottle = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _filterThrottle.Tick += (_, _) =>
