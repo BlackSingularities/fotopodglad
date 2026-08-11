@@ -21,6 +21,7 @@ public sealed class SettingsWindowTests
         var settings = new AppSettings
         {
             WatchedFolderPath = Path.GetTempPath(),
+            Language = LanguageMode.Polish,
             GuestDownloadLongestEdge = 2048,
             GuestDownloadConvertToJpeg = true,
             GuestDownloadJpegQuality = 85
@@ -50,7 +51,9 @@ public sealed class SettingsWindowTests
     [Fact]
     public void Constructor_LeavesFormatSelectable_WhenGuestGetsTheOriginalFile()
     {
-        var settings = new AppSettings { WatchedFolderPath = Path.GetTempPath() };
+        // Język jawnie ustawiony: przy LanguageMode.Automatic treść zależy od języka systemu,
+        // więc test przechodziłby na polskim Windowsie i padał na angielskim runnerze CI.
+        var settings = new AppSettings { WatchedFolderPath = Path.GetTempPath(), Language = LanguageMode.Polish };
 
         WpfTestHost.Run(() =>
         {
